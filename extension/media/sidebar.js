@@ -11,6 +11,11 @@
   const narrationText = document.querySelector("#narration-text");
   const narrateButton = document.querySelector("#narrate");
   const narrationResult = document.querySelector("#narration-result");
+  const ttsModel = document.querySelector("#tts-model");
+  const ttsVoice = document.querySelector("#tts-voice");
+  const ttsStyle = document.querySelector("#tts-style");
+  const ttsExact = document.querySelector("#tts-exact");
+  const ttsAudio = document.querySelector("#tts-audio");
   const videoSource = document.querySelector("#video-source");
   const videoPreview = document.querySelector("#video-preview");
   const videoState = document.querySelector("#video-state");
@@ -24,6 +29,7 @@
   let activeTranscriptTurn;
   const activeSources = new Set();
   const turns = [];
+  let ttsAudioUrl;
   let videoStream;
   let videoTimer;
   const videoCanvas = document.createElement("canvas");
@@ -345,9 +351,22 @@
     try {
       const result = await api("/api/narrate", {
         method: "POST",
-        body: JSON.stringify({ text: narrationText.value }),
+        body: JSON.stringify({
+          text: narrationText.value,
+          model: ttsModel.value,
+          voice: ttsVoice.value,
+          style: ttsStyle.value,
+          exact: ttsExact.checked,
+        }),
       });
-      narrationResult.textContent = `Wrote ${result.output} (${result.characters} chars).`;
+      if (result.audioBase64) {
+        const bytes = Uint8Array.from(atob(result.audioBase64), (character) => character.charCodeAt(0));
+        if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
+        ttsAudioUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        ttsAudio.src = ttsAudioUrl;
+        void ttsAudio.play().catch(() => undefined);
+      }
+      narrationResult.textContent = `${result.voice} · ${result.characters} chars`;
     } catch (error) {
       narrationResult.textContent = error.message || String(error);
     } finally {
@@ -359,6 +378,27 @@
     if (event.data?.type === "start") void start();
     if (event.data?.type === "stop") void stop();
   });
-  window.addEventListener("beforeunload", () => void stop(false));
+  window.addEventListener("beforeunload", () => {
+    if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
+    void stop(false);
+  });
   void refresh().catch((error) => setStatus(error.message || String(error), "error"));
+  void api("/api/tts").then((catalog) => {
+    for (const model of catalog.models ?? []) {
+      const option = document.createElement("option");
+      option.value = model;
+      option.textContent = model;
+      if (model === catalog.defaultModel) option.selected = true;
+      ttsModel.append(option);
+    }
+    for (const voice of catalog.voices ?? []) {
+      const option = document.createElement("option");
+      option.value = voice.name;
+      option.textContent = `${voice.name} · ${voice.description}`;
+      if (voice.name === catalog.defaultVoice) option.selected = true;
+      ttsVoice.append(option);
+    }
+  }).catch((error) => {
+    narrationResult.textContent = error.message || String(error);
+  });
 })();

@@ -163,9 +163,15 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
     </section>
 
     <section class="narration">
-      <p class="eyebrow">NARRATION</p>
+      <p class="eyebrow">GEMINI TTS</p>
+      <p class="muted">Separate from Live. Request/response recitation with voice and style prompts.</p>
+      <label class="muted">Model<select id="tts-model"></select></label>
+      <label class="muted">Voice<select id="tts-voice"></select></label>
+      <input id="tts-style" type="text" placeholder="Style prompt, e.g. calm British narrator">
+      <label class="muted"><input id="tts-exact" type="checkbox" checked> Recite exactly</label>
       <textarea id="narration-text" rows="5" placeholder="Type text to narrate explicitly."></textarea>
-      <button id="narrate">Narrate text</button>
+      <button id="narrate">Speak with TTS</button>
+      <audio id="tts-audio" controls></audio>
       <p id="narration-result" class="muted"></p>
     </section>
 

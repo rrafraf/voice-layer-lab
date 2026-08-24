@@ -22,3 +22,24 @@ export interface AudioSource {
   start(onAudio: (chunk: Buffer) => void): Promise<void>;
   stop(): Promise<void>;
 }
+
+export interface TtsRequest {
+  text: string;
+  model: string;
+  voice: string;
+  language?: string;
+  style?: string;
+  exact?: boolean;
+}
+
+export interface TtsSynthesis {
+  pcm: Buffer;
+  sampleRate: 24000;
+  model: string;
+  voice: string;
+}
+
+export interface TtsProvider {
+  readonly name: string;
+  synthesize(request: TtsRequest): Promise<TtsSynthesis>;
+}

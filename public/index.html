@@ -10,9 +10,9 @@
     <main>
       <header>
         <div>
-          <p class="eyebrow">GEMINI LIVE · LOCAL LAB</p>
+          <p class="eyebrow">GEMINI LIVE + GEMINI TTS · LOCAL LAB</p>
           <h1>Voice Layer</h1>
-          <p class="subtitle">Microphone plus optional camera or screen frames.</p>
+          <p class="subtitle">Live conversation on the left path. Exact TTS recitation stays a separate request.</p>
         </div>
         <div id="status" class="status idle"><span></span>Idle</div>
       </header>
@@ -68,6 +68,45 @@
           Cursor. Nothing is sent to Cursor automatically.
         </p>
         <pre id="prompt-preview" class="prompt-preview">Your spoken Cursor prompt will appear here.</pre>
+      </section>
+
+      <section class="tts-lab" aria-labelledby="tts-lab-title">
+        <div class="diagnostics-header">
+          <div>
+            <p class="eyebrow">GEMINI TTS · REQUEST / RESPONSE</p>
+            <h2 id="tts-lab-title">Exact text recitation</h2>
+          </div>
+          <div id="tts-state" class="test-state">Ready</div>
+        </div>
+        <p class="section-copy">
+          This is not Live. TTS recites the text you type, once, with a chosen
+          voice and optional style prompt. Use it beside Live to compare latency
+          and control.
+        </p>
+        <div class="tts-grid">
+          <label>
+            Model
+            <select id="tts-model"></select>
+          </label>
+          <label>
+            Voice
+            <select id="tts-voice"></select>
+          </label>
+        </div>
+        <label class="tts-style-label">
+          Style prompt
+          <input id="tts-style" type="text" placeholder="calm British narrator, slightly faster, no extra words" />
+        </label>
+        <label class="tts-exact">
+          <input id="tts-exact" type="checkbox" checked />
+          Recite the text exactly
+        </label>
+        <textarea id="tts-text" rows="5" placeholder="Text for Gemini TTS to speak."></textarea>
+        <div class="test-controls">
+          <button id="tts-speak" class="primary">Speak with TTS</button>
+        </div>
+        <audio id="tts-audio" controls></audio>
+        <a id="tts-download" class="download-link" hidden>Download WAV</a>
       </section>
 
       <section class="mic-lab" aria-labelledby="mic-lab-title">

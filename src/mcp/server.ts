@@ -33,14 +33,16 @@ const tools: ToolDefinition[] = [
   },
   {
     name: "voice_narrate_text",
-    description: "Narrate explicit text through the local server-side Gemini TTS path.",
+    description: "Speak explicit text with Gemini TTS (request/response, not Live). Hidden UI state is not read.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Explicit text to narrate. Hidden UI state is not read." },
+        text: { type: "string", description: "Explicit text to narrate." },
         output: { type: "string", description: "Optional server-side WAV output path." },
         voice: { type: "string", description: "Optional Gemini prebuilt voice name." },
         model: { type: "string", description: "Optional Gemini TTS model override." },
+        style: { type: "string", description: "Optional natural-language delivery style prompt." },
+        exact: { type: "boolean", description: "If true, recite the text without extra words. Default true." },
         maxChars: { type: "number", description: "Optional request cap up to 2000 characters." },
       },
       required: ["text"],
@@ -92,6 +94,11 @@ function getNumberArgument(args: Record<string, unknown>, key: string): number |
   return typeof value === "number" ? value : undefined;
 }
 
+function getBooleanArgument(args: Record<string, unknown>, key: string): boolean | undefined {
+  const value = args[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
 const server = new Server(
   {
     name: "voice-layer-lab",
@@ -130,7 +137,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             output: getStringArgument(args, "output"),
             voice: getStringArgument(args, "voice"),
             model: getStringArgument(args, "model"),
+            style: getStringArgument(args, "style"),
+            exact: getBooleanArgument(args, "exact"),
             maxChars: getNumberArgument(args, "maxChars"),
+            includeAudio: false,
           }),
         }),
       );

@@ -9,6 +9,15 @@ const copyLogButton = document.querySelector("#copy-log");
 const copyPromptButton = document.querySelector("#copy-prompt");
 const clearPromptButton = document.querySelector("#clear-prompt");
 const promptPreview = document.querySelector("#prompt-preview");
+const ttsModel = document.querySelector("#tts-model");
+const ttsVoice = document.querySelector("#tts-voice");
+const ttsStyle = document.querySelector("#tts-style");
+const ttsExact = document.querySelector("#tts-exact");
+const ttsText = document.querySelector("#tts-text");
+const ttsSpeakButton = document.querySelector("#tts-speak");
+const ttsAudio = document.querySelector("#tts-audio");
+const ttsDownload = document.querySelector("#tts-download");
+const ttsState = document.querySelector("#tts-state");
 const recordRawButton = document.querySelector("#record-raw");
 const recordProcessedButton = document.querySelector("#record-processed");
 const stopTestButton = document.querySelector("#stop-test");
@@ -31,6 +40,7 @@ const turns = [];
 const diagnosticEvents = [];
 let micTest;
 const recordingUrls = { raw: undefined, processed: undefined };
+let ttsAudioUrl;
 let activeTranscriptTurn;
 let videoStream;
 let videoTimer;
@@ -522,6 +532,68 @@ function clearTranscript() {
   logEvent("info", "Transcript cleared");
 }
 
+function fillSelect(select, values, selected) {
+  select.replaceChildren();
+  for (const value of values) {
+    const option = document.createElement("option");
+    if (typeof value === "string") {
+      option.value = value;
+      option.textContent = value;
+    } else {
+      option.value = value.name;
+      option.textContent = `${value.name} · ${value.description}`;
+    }
+    if (option.value === selected) option.selected = true;
+    select.append(option);
+  }
+}
+
+async function loadTtsCatalog() {
+  const response = await fetch("/api/tts");
+  const catalog = await response.json();
+  fillSelect(ttsModel, catalog.models, catalog.defaultModel);
+  fillSelect(ttsVoice, catalog.voices, catalog.defaultVoice);
+  ttsState.textContent = "Ready";
+}
+
+async function speakWithTts() {
+  ttsSpeakButton.disabled = true;
+  ttsState.textContent = "Generating…";
+  logEvent("info", "TTS request", ttsVoice.value);
+  try {
+    const response = await fetch("/api/narrate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: ttsText.value,
+        model: ttsModel.value,
+        voice: ttsVoice.value,
+        style: ttsStyle.value,
+        exact: ttsExact.checked,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    if (!result.audioBase64) throw new Error("TTS returned no audio.");
+    const bytes = Uint8Array.from(atob(result.audioBase64), (character) => character.charCodeAt(0));
+    if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
+    ttsAudioUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+    ttsAudio.src = ttsAudioUrl;
+    ttsDownload.href = ttsAudioUrl;
+    ttsDownload.download = `tts-${result.voice}-${new Date().toISOString().replaceAll(":", "-")}.wav`;
+    ttsDownload.hidden = false;
+    ttsState.textContent = `${result.voice} · ${result.characters} chars`;
+    logEvent("ok", "TTS audio ready", `${result.model}, ${result.voice}`);
+    await ttsAudio.play().catch(() => undefined);
+  } catch (error) {
+    const message = error.message ?? String(error);
+    ttsState.textContent = message;
+    logEvent("error", "TTS failed", message);
+  } finally {
+    ttsSpeakButton.disabled = false;
+  }
+}
+
 startButton.addEventListener("click", start);
 stopButton.addEventListener("click", () => stop());
 videoSource.addEventListener("change", () => {
@@ -544,6 +616,7 @@ muteButton.addEventListener("click", () => {
 downloadButton.addEventListener("click", downloadTranscript);
 copyPromptButton.addEventListener("click", () => void copyCursorPrompt());
 clearPromptButton.addEventListener("click", clearTranscript);
+ttsSpeakButton.addEventListener("click", () => void speakWithTts());
 recordRawButton.addEventListener("click", () => recordMicTest("raw"));
 recordProcessedButton.addEventListener("click", () => recordMicTest("processed"));
 stopTestButton.addEventListener("click", () => {
@@ -558,5 +631,10 @@ copyLogButton.addEventListener("click", async () => {
 window.addEventListener("beforeunload", () => {
   micTest?.stream?.getTracks().forEach((track) => track.stop());
   for (const url of Object.values(recordingUrls)) if (url) URL.revokeObjectURL(url);
+  if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
   void stop(false);
+});
+void loadTtsCatalog().catch((error) => {
+  ttsState.textContent = error.message ?? String(error);
+  logEvent("error", "TTS catalog failed", error.message ?? String(error));
 });

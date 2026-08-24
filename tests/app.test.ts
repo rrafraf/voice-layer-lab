@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { VoiceLab, formatEvent } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
-import { guardNarrationText, hardMaxNarrationChars, normalizeNarrationText } from "../src/narration.js";
+import { narrateText } from "../src/narration.js";
+import { buildTtsContents, guardNarrationText, hardMaxNarrationChars, normalizeNarrationText } from "../src/core/tts.js";
 import type {
   AudioSource,
+  TtsProvider,
+  TtsRequest,
   VoiceEventHandler,
   VoiceProvider,
 } from "../src/core/types.js";
@@ -95,6 +98,47 @@ test("narration input is normalized and capped before Gemini is called", () => {
     () => guardNarrationText("x".repeat(hardMaxNarrationChars + 1)),
     /refusing to send/,
   );
+});
+
+test("TTS prompt keeps exact recitation and optional style", () => {
+  const exact = buildTtsContents({ text: "Hello there.", exact: true });
+  assert.match(exact, /exactly/i);
+  assert.match(exact, /Hello there/);
+  const styled = buildTtsContents({
+    text: "Hello there.",
+    exact: true,
+    style: "calm British narrator",
+  });
+  assert.match(styled, /calm British narrator/);
+  assert.equal(styled.includes("Hello there."), true);
+});
+
+test("narrateText talks to a TtsProvider without calling Gemini", async () => {
+  const pcm = Buffer.alloc(48);
+  const provider: TtsProvider = {
+    name: "fake-tts",
+    async synthesize(request: TtsRequest) {
+      assert.equal(request.voice, "Puck");
+      assert.equal(request.style, "whisper");
+      return { pcm, sampleRate: 24000, model: request.model, voice: request.voice };
+    },
+  };
+
+  const result = await narrateText(
+    "unused-key",
+    {
+      text: "hello",
+      voice: "Puck",
+      style: "whisper",
+      output: "runs/test-tts.wav",
+      includeAudio: false,
+    },
+    provider,
+  );
+
+  assert.equal(result.api, "tts");
+  assert.equal(result.voice, "Puck");
+  assert.equal(result.audioBase64, undefined);
 });
 
 test("realtime video frames are JPEG and size-capped", () => {

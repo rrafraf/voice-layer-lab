@@ -1,4 +1,5 @@
 import { config as loadEnvFile } from "dotenv";
+import { defaultTtsModel, defaultTtsVoice } from "./core/tts.js";
 
 loadEnvFile({ path: [".env.local", ".env"], quiet: true });
 
@@ -9,6 +10,8 @@ export interface AppConfig {
   language: string;
   inputDevice: string;
   model: string;
+  ttsModel: string;
+  ttsVoice: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -38,5 +41,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       env.VOICE_INPUT_DEVICE ??
       "Microphone (2- Realtek High Definition Audio)",
     model: env.GEMINI_LIVE_MODEL ?? "gemini-3.1-flash-live-preview",
+    ttsModel: env.GEMINI_TTS_MODEL?.trim() || defaultTtsModel,
+    ttsVoice: env.GEMINI_TTS_VOICE?.trim() || defaultTtsVoice,
   };
 }

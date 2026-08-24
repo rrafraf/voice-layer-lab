@@ -12,12 +12,12 @@ copy it, then paste it into Cursor yourself.
 ## Architecture
 
 ```text
-Windows microphone -> 16 kHz PCM -> VoiceProvider.sendAudio -> Gemini Live
-Camera or screen   -> JPEG <=1 FPS -> VoiceProvider.sendVideo ─┘
+Live:  mic PCM 16kHz + optional JPEG <=1FPS -> VoiceProvider -> Gemini Live
+TTS:   explicit text + voice + style prompt -> TtsProvider  -> Gemini TTS
                                               |
-                                              +-- Gemini Live (implemented)
-                                              +-- OpenAI Realtime (next)
-                                              +-- local model (next)
+                                              +-- Gemini Live (interactive native audio)
+                                              +-- Gemini TTS (request/response recitation)
+                                              +-- OpenAI Realtime / OpenAI TTS (next)
 ```
 
 ## Requirements
@@ -49,10 +49,9 @@ prompt. Select **Copy Cursor prompt** when you want to paste the request into
 Cursor. This is the current safety boundary: voice can draft intent, but Cursor
 does not execute anything until you review and submit it.
 
-The UI includes **Mute Gemini**, browser echo cancellation, noise suppression,
-and automatic gain control. The API key remains in the local Node process and
-is never sent to the browser. Transcripts stay in memory unless **Download
-transcript** is selected.
+The **Gemini TTS** panel is a separate request/response path: pick a voice, add
+an optional style prompt, and speak explicit text exactly. It does not share
+the Live microphone session. See `docs/gemini-tts-vs-live.md`.
 
 The default input is the repaired Realtek microphone. Override
 `VOICE_INPUT_DEVICE` if the Windows device name changes.
@@ -70,13 +69,15 @@ Available endpoints:
 - `GET /api/prompt` returns only the reviewed prompt.
 - `POST /api/transcript/clear` clears in-memory transcript turns.
 - `POST /api/control/start` and `POST /api/control/stop` broadcast start/stop intent to connected voice clients.
-- `POST /api/narrate` accepts explicit `{ "text": "..." }`, applies the strict speak-exactly instruction server-side, and writes a WAV under `runs/`.
+- `GET /api/tts` returns TTS models, voices, defaults, and the Live-vs-TTS distinction.
+- `POST /api/narrate` accepts `{ "text", "voice?", "model?", "style?", "exact?" }`, recites through Gemini TTS, writes a WAV under `runs/`, and returns audio for in-page playback.
 
 Start/stop control cannot capture hidden Cursor UI state. A connected browser or
 extension webview still owns microphone, camera, and screen-share permission.
 Video is forwarded only as JPEG frames at most once per second.
 
-See `docs/gemini-live-video.md` for the Live API video constraints used here.
+See `docs/gemini-live-video.md` for Live video constraints and
+`docs/gemini-tts-vs-live.md` for why TTS stays a separate API.
 
 ## Cursor extension
 
@@ -143,9 +144,9 @@ Guardrails:
   with `--max-chars`, but not raise it above 2000.
 - `--yes` is required before any API call. Use `--dry-run` to preview the estimate
   without calling Gemini.
-- The default model is `gemini-2.5-flash-preview-tts` with the `Kore` prebuilt
-  voice. Override with `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`, `--model`, or
-  `--voice`.
+- The default model is `gemini-3.1-flash-tts-preview` with the `Kore` prebuilt
+  voice. Override with `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`, `--model`,
+  `--voice`, or `--style`.
 - Use `--sample --yes` for a harmless smoke test, `--text "..." --yes` to avoid
   clipboard access, and `--no-open` if you only want the WAV file.
 

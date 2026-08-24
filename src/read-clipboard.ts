@@ -28,6 +28,7 @@ interface CliOptions {
   output: string;
   model: string;
   voice: string;
+  style?: string;
   maxChars: number;
 }
 
@@ -62,9 +63,13 @@ function parseArgs(argv: string[]): CliOptions {
       if (!next) throw new Error("--model requires a Gemini TTS model name");
       options.model = next;
       index += 1;
-    } else if (arg === "--voice") {
+    }     else if (arg === "--voice") {
       if (!next) throw new Error("--voice requires a prebuilt voice name");
       options.voice = next;
+      index += 1;
+    } else if (arg === "--style") {
+      if (!next) throw new Error("--style requires a delivery prompt");
+      options.style = next;
       index += 1;
     } else if (arg === "--max-chars") {
       if (!next) throw new Error("--max-chars requires a number");
@@ -101,6 +106,7 @@ Options:
   --out <path>          WAV output path. Default: ${defaultOutput}
   --model <model>       Gemini TTS model. Default: ${defaultTtsModel}
   --voice <voice>       Prebuilt voice. Default: ${defaultTtsVoice}
+  --style <text>        Optional natural-language delivery style prompt.
   --max-chars <number>  Request cap, maximum ${hardMaxNarrationChars}. Default: ${hardMaxNarrationChars}
   --no-open             Do not open the WAV after writing it.
 `);
@@ -127,6 +133,8 @@ async function generateSpeech(options: CliOptions, text: string): Promise<Buffer
     text,
     model: options.model,
     voice: options.voice,
+    style: options.style,
+    exact: true,
     maxChars: options.maxChars,
   });
 }
@@ -140,6 +148,7 @@ async function main(): Promise<void> {
   console.log("Gemini read-aloud one-shot");
   console.log(`Model: ${options.model}`);
   console.log(`Voice: ${options.voice}`);
+  if (options.style) console.log(`Style: ${options.style}`);
   console.log(`Characters: ${text.length}/${options.maxChars}`);
   console.log(`Estimated input tokens: about ${estimateTokens(text)} before instruction overhead`);
   console.log(`Output file: ${options.output}`);

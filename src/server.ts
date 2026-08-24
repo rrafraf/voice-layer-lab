@@ -4,13 +4,16 @@ import { extname, join, normalize } from "node:path";
 import open from "open";
 import { WebSocket, WebSocketServer } from "ws";
 import { loadConfig } from "./config.js";
+import { describeTtsApi } from "./core/tts.js";
 import type { VoiceEvent } from "./core/types.js";
 import { parseRealtimeVideoMessage } from "./core/video.js";
 import { narrateText } from "./narration.js";
 import { GeminiLiveProvider } from "./providers/gemini-live.js";
+import { GeminiTtsProvider } from "./providers/gemini-tts.js";
 import { VoiceSessionState } from "./voice-session-state.js";
 
 const config = loadConfig();
+const ttsProvider = new GeminiTtsProvider(config.apiKey);
 const port = Number(process.env.VOICE_UI_PORT ?? 4317);
 const publicDir = join(process.cwd(), "public");
 const logDir = join(process.cwd(), "logs");
@@ -126,6 +129,16 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
       return true;
     }
 
+    if (request.method === "GET" && pathname === "/api/tts") {
+      writeJson(response, 200, {
+        ...describeTtsApi(),
+        defaultModel: config.ttsModel,
+        defaultVoice: config.ttsVoice,
+        language: config.language,
+      });
+      return true;
+    }
+
     if (request.method === "POST" && pathname === "/api/narrate") {
       const body = await readRequestJson(request);
       if (!isRecord(body) || typeof body.text !== "string") {
@@ -133,14 +146,21 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
         return true;
       }
 
-      const result = await narrateText(config.apiKey, {
-        text: body.text,
-        output: typeof body.output === "string" ? body.output : undefined,
-        model: typeof body.model === "string" ? body.model : undefined,
-        voice: typeof body.voice === "string" ? body.voice : undefined,
-        maxChars: typeof body.maxChars === "number" ? body.maxChars : undefined,
-        language: config.language,
-      });
+      const result = await narrateText(
+        config.apiKey,
+        {
+          text: body.text,
+          output: typeof body.output === "string" ? body.output : undefined,
+          model: typeof body.model === "string" ? body.model : undefined,
+          voice: typeof body.voice === "string" ? body.voice : undefined,
+          maxChars: typeof body.maxChars === "number" ? body.maxChars : undefined,
+          style: typeof body.style === "string" ? body.style : undefined,
+          exact: body.exact === false ? false : true,
+          includeAudio: body.includeAudio === false ? false : true,
+          language: config.language,
+        },
+        ttsProvider,
+      );
       writeJson(response, 200, result);
       return true;
     }
