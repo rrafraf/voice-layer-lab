@@ -35,5 +35,6 @@ The supported substitute in this project is:
 - Cursor MCP guide: https://cursor.com/guides/coding-agent-mcp
 - Gemini Live API guide: https://ai.google.dev/gemini-api/docs/live-api
 - Gemini Live API SDK guide: https://ai.google.dev/gemini-api/docs/live-api/get-started-sdk
+- Gemini Live video frames: JPEG images at most 1 FPS via `sendRealtimeInput({ video })`
 - Gemini TTS guide: https://ai.google.dev/gemini-api/docs/generate-content/speech-generation
 

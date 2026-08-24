@@ -39,7 +39,7 @@ export class GeminiLiveProvider implements VoiceProvider {
               text:
                 behavior === "transcribe"
                   ? `Act only as a silent realtime transcription session. Listen in ${this.options.language}. Do not speak or answer the user.`
-                  : `You are a concise realtime voice assistant. Listen and respond naturally in ${this.options.language}. Let the user interrupt you.`,
+                  : `You are a concise realtime voice assistant. Listen and respond naturally in ${this.options.language}. JPEG frames may arrive from the user's camera or screen at about 1 FPS. Use them when the user refers to what is visible. Do not invent UI or code that is not in the frames. Let the user interrupt you.`,
             },
           ],
         },
@@ -84,6 +84,16 @@ export class GeminiLiveProvider implements VoiceProvider {
       audio: {
         data: chunk.toString("base64"),
         mimeType: "audio/pcm;rate=16000",
+      },
+    });
+  }
+
+  sendVideo(chunk: Buffer, mimeType = "image/jpeg"): void {
+    if (!this.session) throw new Error("Gemini session is not connected");
+    this.session.sendRealtimeInput({
+      video: {
+        data: chunk.toString("base64"),
+        mimeType,
       },
     });
   }

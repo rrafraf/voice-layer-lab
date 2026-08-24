@@ -1,8 +1,8 @@
 # Voice Layer Lab
 
 A small, provider-neutral realtime voice experiment. The first adapter streams the
-Windows microphone to Gemini Live, plays Gemini audio in the browser, and keeps a
-reviewable prompt handoff for Cursor.
+Windows microphone and optional camera/screen JPEG frames to Gemini Live, plays
+Gemini audio in the browser, and keeps a reviewable prompt handoff for Cursor.
 
 This milestone intentionally has **no automatic computer-control tools**. It lets
 us measure capture quality, latency, transcript accuracy, turn detection, and cost
@@ -12,7 +12,8 @@ copy it, then paste it into Cursor yourself.
 ## Architecture
 
 ```text
-Windows microphone -> FFmpeg PCM stream -> VoiceProvider -> transcript events
+Windows microphone -> 16 kHz PCM -> VoiceProvider.sendAudio -> Gemini Live
+Camera or screen   -> JPEG <=1 FPS -> VoiceProvider.sendVideo ─┘
                                               |
                                               +-- Gemini Live (implemented)
                                               +-- OpenAI Realtime (next)
@@ -38,8 +39,10 @@ Windows microphone -> FFmpeg PCM stream -> VoiceProvider -> transcript events
 ## One-click duplex UI
 
 Double-click `start-voice-lab.cmd`. The local page opens automatically. Select
-**Start listening**, allow microphone access, and talk naturally. Gemini's audio
-plays through the browser and both sides appear in the transcript panel.
+**Start listening**, allow microphone access, and talk naturally. Optionally
+choose **Camera** or **Screen** to send JPEG frames at 1 FPS alongside the mic.
+Gemini's audio plays through the browser and both sides appear in the transcript
+panel.
 
 The **Cursor handoff** panel collects only your spoken turns into a reviewable
 prompt. Select **Copy Cursor prompt** when you want to paste the request into
@@ -62,7 +65,7 @@ process and is never sent to a webview or MCP client.
 
 Available endpoints:
 
-- `GET /api/status` returns server/client status and the latest error.
+- `GET /api/status` returns server/client status, latest error, and forwarded video frame count.
 - `GET /api/transcript` returns in-memory transcript turns plus the reviewed Cursor prompt.
 - `GET /api/prompt` returns only the reviewed prompt.
 - `POST /api/transcript/clear` clears in-memory transcript turns.
@@ -70,7 +73,10 @@ Available endpoints:
 - `POST /api/narrate` accepts explicit `{ "text": "..." }`, applies the strict speak-exactly instruction server-side, and writes a WAV under `runs/`.
 
 Start/stop control cannot capture hidden Cursor UI state. A connected browser or
-extension webview still owns microphone permission and audio capture.
+extension webview still owns microphone, camera, and screen-share permission.
+Video is forwarded only as JPEG frames at most once per second.
+
+See `docs/gemini-live-video.md` for the Live API video constraints used here.
 
 ## Cursor extension
 

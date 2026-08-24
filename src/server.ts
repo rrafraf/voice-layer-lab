@@ -5,6 +5,7 @@ import open from "open";
 import { WebSocket, WebSocketServer } from "ws";
 import { loadConfig } from "./config.js";
 import type { VoiceEvent } from "./core/types.js";
+import { parseRealtimeVideoMessage } from "./core/video.js";
 import { narrateText } from "./narration.js";
 import { GeminiLiveProvider } from "./providers/gemini-live.js";
 import { VoiceSessionState } from "./voice-session-state.js";
@@ -211,9 +212,27 @@ sockets.on("connection", async (socket) => {
   });
   let providerReady = false;
   let reportedEarlyAudio = false;
+  let videoFrames = 0;
 
   socket.on("message", (data, isBinary) => {
-    if (!isBinary) return;
+    if (!isBinary) {
+      try {
+        const frame = parseRealtimeVideoMessage(data.toString());
+        if (!providerReady) return;
+        provider.sendVideo(frame.data, frame.mimeType);
+        voiceState.noteVideoFrame();
+        videoFrames += 1;
+        if (videoFrames === 1 || videoFrames % 10 === 0) {
+          log(session, "video_frame", `${frame.data.length} bytes frame=${videoFrames}`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message === "Not a video message") return;
+        log(session, "video_send_failed", message);
+        sendJson(socket, { type: "error", message });
+      }
+      return;
+    }
     if (!providerReady) {
       if (!reportedEarlyAudio) {
         reportedEarlyAudio = true;

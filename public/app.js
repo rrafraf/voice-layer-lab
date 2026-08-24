@@ -15,6 +15,9 @@ const stopTestButton = document.querySelector("#stop-test");
 const micTestState = document.querySelector("#mic-test-state");
 const micMeter = document.querySelector("#mic-meter");
 const micSettings = document.querySelector("#mic-settings");
+const videoSource = document.querySelector("#video-source");
+const videoPreview = document.querySelector("#video-preview");
+const videoState = document.querySelector("#video-state");
 
 let socket;
 let stream;
@@ -29,6 +32,11 @@ const diagnosticEvents = [];
 let micTest;
 const recordingUrls = { raw: undefined, processed: undefined };
 let activeTranscriptTurn;
+let videoStream;
+let videoTimer;
+const videoCanvas = document.createElement("canvas");
+const VIDEO_FRAME_MS = 1000;
+const VIDEO_MAX_EDGE = 1280;
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -304,6 +312,62 @@ function floatToPcm16(input) {
   return pcm.buffer;
 }
 
+function setVideoState(label) {
+  videoState.textContent = label;
+}
+
+function stopVideo() {
+  if (videoTimer) {
+    clearInterval(videoTimer);
+    videoTimer = undefined;
+  }
+  videoStream?.getTracks().forEach((track) => track.stop());
+  videoStream = undefined;
+  videoPreview.srcObject = null;
+  videoPreview.classList.remove("active");
+  setVideoState(videoSource.value === "none" ? "Audio only" : "Video stopped");
+}
+
+function sendVideoFrame() {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!videoPreview.videoWidth) return;
+  const scale = Math.min(1, VIDEO_MAX_EDGE / Math.max(videoPreview.videoWidth, videoPreview.videoHeight));
+  videoCanvas.width = Math.max(1, Math.round(videoPreview.videoWidth * scale));
+  videoCanvas.height = Math.max(1, Math.round(videoPreview.videoHeight * scale));
+  const context = videoCanvas.getContext("2d");
+  if (!context) return;
+  context.drawImage(videoPreview, 0, 0, videoCanvas.width, videoCanvas.height);
+  const dataUrl = videoCanvas.toDataURL("image/jpeg", 0.7);
+  const data = dataUrl.split(",")[1];
+  if (!data) return;
+  socket.send(JSON.stringify({ type: "video", mimeType: "image/jpeg", data }));
+}
+
+async function startVideo() {
+  stopVideo();
+  const kind = videoSource.value;
+  if (kind === "none") {
+    setVideoState("Audio only");
+    return;
+  }
+
+  logEvent("info", "Requesting video capture", kind);
+  videoStream = kind === "screen"
+    ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+    : await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+  const track = videoStream.getVideoTracks()[0];
+  track?.addEventListener("ended", () => {
+    logEvent("warn", "Video track ended");
+    videoSource.value = "none";
+    stopVideo();
+  });
+  videoPreview.srcObject = videoStream;
+  videoPreview.classList.add("active");
+  setVideoState(`${kind} · JPEG 1 FPS`);
+  logEvent("ok", "Video capture started", track?.label || kind);
+  videoTimer = setInterval(sendVideoFrame, VIDEO_FRAME_MS);
+}
+
 async function start() {
   if (socket || stream) return;
   startButton.disabled = true;
@@ -339,6 +403,14 @@ async function start() {
     processor.connect(silent);
     silent.connect(inputContext.destination);
     logEvent("ok", "Microphone audio pipeline ready", `${inputContext.sampleRate} Hz to 16000 Hz`);
+
+    try {
+      await startVideo();
+    } catch (error) {
+      const message = error.message ?? String(error);
+      logEvent("error", "Video capture failed; continuing with audio", message);
+      setVideoState(message);
+    }
 
     socket = new WebSocket(`ws://${location.host}/voice`);
     socket.binaryType = "arraybuffer";
@@ -404,6 +476,7 @@ async function stop(resetStatus = true) {
   processor = undefined;
   stream?.getTracks().forEach((track) => track.stop());
   stream = undefined;
+  stopVideo();
   if (socket?.readyState === WebSocket.OPEN) socket.close();
   socket = undefined;
   await inputContext?.close();
@@ -451,6 +524,17 @@ function clearTranscript() {
 
 startButton.addEventListener("click", start);
 stopButton.addEventListener("click", () => stop());
+videoSource.addEventListener("change", () => {
+  if (socket?.readyState === WebSocket.OPEN) {
+    void startVideo().catch((error) => {
+      const message = error.message ?? String(error);
+      logEvent("error", "Video source change failed", message);
+      setVideoState(message);
+    });
+  } else {
+    setVideoState(videoSource.value === "none" ? "Audio only" : `${videoSource.value} selected`);
+  }
+});
 muteButton.addEventListener("click", () => {
   muted = !muted;
   if (muted) stopPlayback();

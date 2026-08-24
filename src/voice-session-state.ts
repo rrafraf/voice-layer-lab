@@ -15,6 +15,8 @@ export interface VoiceStatus {
   latestSession?: string;
   lastEventAt?: string;
   lastError?: string;
+  videoFrames: number;
+  lastVideoAt?: string;
 }
 
 export interface VoiceTranscriptSnapshot {
@@ -28,6 +30,8 @@ export class VoiceSessionState {
   private latestSession?: string;
   private lastEventAt?: string;
   private lastError?: string;
+  private videoFrames = 0;
+  private lastVideoAt?: string;
   private turns: TranscriptTurn[] = [];
 
   requestStart(): void {
@@ -37,6 +41,12 @@ export class VoiceSessionState {
   requestStop(): void {
     this.desiredListening = false;
     this.providerConnected = false;
+  }
+
+  noteVideoFrame(): void {
+    this.videoFrames += 1;
+    this.lastVideoAt = new Date().toISOString();
+    this.lastEventAt = this.lastVideoAt;
   }
 
   setSession(session: string): void {
@@ -85,6 +95,8 @@ export class VoiceSessionState {
       latestSession: this.latestSession,
       lastEventAt: this.lastEventAt,
       lastError: this.lastError,
+      videoFrames: this.videoFrames,
+      lastVideoAt: this.lastVideoAt,
     };
   }
 

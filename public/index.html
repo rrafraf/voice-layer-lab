@@ -12,7 +12,7 @@
         <div>
           <p class="eyebrow">GEMINI LIVE · LOCAL LAB</p>
           <h1>Voice Layer</h1>
-          <p class="subtitle">One microphone. One provider. Visible turns.</p>
+          <p class="subtitle">Microphone plus optional camera or screen frames.</p>
         </div>
         <div id="status" class="status idle"><span></span>Idle</div>
       </header>
@@ -22,6 +22,30 @@
         <button id="stop" disabled>Stop</button>
         <button id="mute">Mute Gemini</button>
         <button id="download" disabled>Download transcript</button>
+      </section>
+
+      <section class="video-lab" aria-labelledby="video-lab-title">
+        <div class="diagnostics-header">
+          <div>
+            <p class="eyebrow">NATIVE AUDIO + VIDEO</p>
+            <h2 id="video-lab-title">Camera or screen frames</h2>
+          </div>
+          <div id="video-state" class="test-state">Audio only</div>
+        </div>
+        <p class="section-copy">
+          Gemini Live accepts JPEG frames at most once per second alongside the
+          microphone. Camera and screen capture stay in this browser; only JPEG
+          frames are forwarded to the local server.
+        </p>
+        <div class="test-controls">
+          <label class="video-source-label" for="video-source">Video source</label>
+          <select id="video-source">
+            <option value="none">Audio only</option>
+            <option value="camera">Camera</option>
+            <option value="screen">Screen</option>
+          </select>
+        </div>
+        <video id="video-preview" autoplay playsinline muted></video>
       </section>
 
       <section id="transcript" class="transcript" aria-live="polite">
@@ -91,9 +115,10 @@
       </section>
 
       <footer>
-        Audio is live only while this page says Listening. Transcripts are not
-        written to disk unless you choose Download. Diagnostic events are saved
-        locally by the server without audio or API keys.
+        Audio is live only while this page says Listening. Camera and screen
+        frames are JPEG snapshots at 1 FPS, not a stored recording. Transcripts
+        are not written to disk unless you choose Download. Diagnostic events
+        are saved locally by the server without audio, video, or API keys.
       </footer>
     </main>
     <script type="module" src="/app.js"></script>

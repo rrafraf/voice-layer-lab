@@ -14,6 +14,7 @@ export interface VoiceProvider {
   readonly name: string;
   connect(onEvent: VoiceEventHandler): Promise<void>;
   sendAudio(chunk: Buffer): void;
+  sendVideo(chunk: Buffer, mimeType?: string): void;
   close(): Promise<void>;
 }
 

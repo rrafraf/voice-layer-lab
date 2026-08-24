@@ -118,7 +118,7 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; connect-src http://127.0.0.1:* ws://127.0.0.1:*; media-src blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; connect-src http://127.0.0.1:* ws://127.0.0.1:*; media-src blob: mediastream:;">
     <link rel="stylesheet" href="${styleUri}">
     <title>Voice Layer Lab</title>
   </head>
@@ -133,6 +133,17 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
       <button id="start" class="primary">Start listening</button>
       <button id="stop" disabled>Stop</button>
       <button id="refresh">Refresh</button>
+    </section>
+
+    <section class="video">
+      <p class="eyebrow">VIDEO</p>
+      <select id="video-source">
+        <option value="none">Audio only</option>
+        <option value="camera">Camera</option>
+        <option value="screen">Screen</option>
+      </select>
+      <p id="video-state" class="muted">Audio only. JPEG frames are sent at 1 FPS.</p>
+      <video id="video-preview" autoplay playsinline muted></video>
     </section>
 
     <section id="transcript" class="transcript" aria-live="polite">

@@ -22,7 +22,10 @@ button { border: 1px solid var(--vscode-button-border, transparent); border-radi
 button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
 button:disabled { opacity: .5; cursor: default; }
 button.primary { font-weight: 700; }
-.transcript, .prompt, .narration { margin-top: 14px; border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 12px; background: var(--vscode-editor-background); }
+.transcript, .prompt, .narration, .video { margin-top: 14px; border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 12px; background: var(--vscode-editor-background); }
+select { width: 100%; margin: 8px 0; border: 1px solid var(--vscode-input-border, transparent); border-radius: 6px; padding: 7px 8px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); font: inherit; }
+#video-preview { display: none; width: 100%; max-height: 160px; margin-top: 8px; object-fit: contain; background: #000; border-radius: 6px; }
+#video-preview.active { display: block; }
 .transcript { min-height: 200px; max-height: 340px; overflow: auto; }
 .empty, .muted, footer { color: var(--vscode-descriptionForeground); }
 .turn { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--vscode-panel-border); }

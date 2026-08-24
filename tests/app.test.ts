@@ -9,6 +9,7 @@ import type {
   VoiceProvider,
 } from "../src/core/types.js";
 import { VoiceSessionState } from "../src/voice-session-state.js";
+import { maxVideoFrameBytes, parseRealtimeVideoMessage } from "../src/core/video.js";
 
 class FakeAudio implements AudioSource {
   stopped = false;
@@ -23,12 +24,16 @@ class FakeAudio implements AudioSource {
 class FakeProvider implements VoiceProvider {
   readonly name = "fake";
   chunks: Buffer[] = [];
+  frames: Buffer[] = [];
   closed = false;
   async connect(onEvent: VoiceEventHandler): Promise<void> {
     onEvent({ type: "connected", provider: this.name });
   }
   sendAudio(chunk: Buffer): void {
     this.chunks.push(chunk);
+  }
+  sendVideo(chunk: Buffer): void {
+    this.frames.push(chunk);
   }
   async close(): Promise<void> {
     this.closed = true;
@@ -90,4 +95,39 @@ test("narration input is normalized and capped before Gemini is called", () => {
     () => guardNarrationText("x".repeat(hardMaxNarrationChars + 1)),
     /refusing to send/,
   );
+});
+
+test("realtime video frames are JPEG and size-capped", () => {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const parsed = parseRealtimeVideoMessage(
+    JSON.stringify({
+      type: "video",
+      mimeType: "image/jpeg",
+      data: jpeg.toString("base64"),
+    }),
+  );
+
+  assert.equal(parsed.mimeType, "image/jpeg");
+  assert.deepEqual(parsed.data, jpeg);
+  assert.throws(() => parseRealtimeVideoMessage(JSON.stringify({ type: "phase" })), /Not a video message/);
+  assert.throws(
+    () =>
+      parseRealtimeVideoMessage(
+        JSON.stringify({
+          type: "video",
+          mimeType: "image/jpeg",
+          data: Buffer.alloc(maxVideoFrameBytes + 1).toString("base64"),
+        }),
+      ),
+    /max is/,
+  );
+});
+
+test("voice status counts forwarded video frames", () => {
+  const state = new VoiceSessionState();
+  assert.equal(state.getStatus(0).videoFrames, 0);
+  state.noteVideoFrame();
+  state.noteVideoFrame();
+  assert.equal(state.getStatus(1).videoFrames, 2);
+  assert.ok(state.getStatus(1).lastVideoAt);
 });

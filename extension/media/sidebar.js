@@ -11,6 +11,9 @@
   const narrationText = document.querySelector("#narration-text");
   const narrateButton = document.querySelector("#narrate");
   const narrationResult = document.querySelector("#narration-result");
+  const videoSource = document.querySelector("#video-source");
+  const videoPreview = document.querySelector("#video-preview");
+  const videoState = document.querySelector("#video-state");
 
   let socket;
   let stream;
@@ -21,6 +24,11 @@
   let activeTranscriptTurn;
   const activeSources = new Set();
   const turns = [];
+  let videoStream;
+  let videoTimer;
+  const videoCanvas = document.createElement("canvas");
+  const VIDEO_FRAME_MS = 1000;
+  const VIDEO_MAX_EDGE = 1280;
 
   function setStatus(label, kind = "idle") {
     status.className = `status ${kind}`;
@@ -115,6 +123,48 @@
     return pcm.buffer;
   }
 
+  function stopVideo() {
+    if (videoTimer) {
+      clearInterval(videoTimer);
+      videoTimer = undefined;
+    }
+    videoStream?.getTracks().forEach((track) => track.stop());
+    videoStream = undefined;
+    videoPreview.srcObject = null;
+    videoPreview.classList.remove("active");
+    videoState.textContent = videoSource.value === "none" ? "Audio only. JPEG frames are sent at 1 FPS." : "Video stopped";
+  }
+
+  function sendVideoFrame() {
+    if (!socket || socket.readyState !== WebSocket.OPEN || !videoPreview.videoWidth) return;
+    const scale = Math.min(1, VIDEO_MAX_EDGE / Math.max(videoPreview.videoWidth, videoPreview.videoHeight));
+    videoCanvas.width = Math.max(1, Math.round(videoPreview.videoWidth * scale));
+    videoCanvas.height = Math.max(1, Math.round(videoPreview.videoHeight * scale));
+    const context = videoCanvas.getContext("2d");
+    if (!context) return;
+    context.drawImage(videoPreview, 0, 0, videoCanvas.width, videoCanvas.height);
+    const data = videoCanvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+    if (data) socket.send(JSON.stringify({ type: "video", mimeType: "image/jpeg", data }));
+  }
+
+  async function startVideo() {
+    stopVideo();
+    const kind = videoSource.value;
+    if (kind === "none") return;
+    videoStream = kind === "screen"
+      ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      : await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+    const track = videoStream.getVideoTracks()[0];
+    track?.addEventListener("ended", () => {
+      videoSource.value = "none";
+      stopVideo();
+    });
+    videoPreview.srcObject = videoStream;
+    videoPreview.classList.add("active");
+    videoState.textContent = `${kind} · JPEG 1 FPS`;
+    videoTimer = setInterval(sendVideoFrame, VIDEO_FRAME_MS);
+  }
+
   function playPcm16(arrayBuffer) {
     outputContext ??= new AudioContext({ sampleRate: 24000 });
     const bytes = new Int16Array(arrayBuffer);
@@ -202,6 +252,12 @@
       processor.connect(silent);
       silent.connect(inputContext.destination);
 
+      try {
+        await startVideo();
+      } catch (error) {
+        videoState.textContent = error.message || String(error);
+      }
+
       socket = new WebSocket(`${serverUrl.replace(/^http/, "ws")}/voice`);
       socket.binaryType = "arraybuffer";
       socket.onopen = () => {
@@ -251,6 +307,7 @@
     processor = undefined;
     stream?.getTracks().forEach((track) => track.stop());
     stream = undefined;
+    stopVideo();
     if (socket?.readyState === WebSocket.OPEN) socket.close();
     socket = undefined;
     await inputContext?.close();
@@ -266,6 +323,13 @@
 
   startButton.addEventListener("click", () => void start());
   stopButton.addEventListener("click", () => void stop());
+  videoSource.addEventListener("change", () => {
+    if (socket?.readyState === WebSocket.OPEN) {
+      void startVideo().catch((error) => {
+        videoState.textContent = error.message || String(error);
+      });
+    }
+  });
   refreshButton.addEventListener("click", () => void refresh());
   copyPromptButton.addEventListener("click", async () => {
     const prompt = promptPreview.textContent;
