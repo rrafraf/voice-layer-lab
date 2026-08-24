@@ -1,0 +1,91 @@
+{
+  "name": "voice-layer-lab-cursor",
+  "displayName": "Voice Layer Lab",
+  "description": "Cursor extension UI for the local Voice Layer Lab runtime.",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/extension.js",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:voiceLayerLab.sidebar",
+    "onCommand:voiceLayerLab.start",
+    "onCommand:voiceLayerLab.stop",
+    "onCommand:voiceLayerLab.openPanel",
+    "onCommand:voiceLayerLab.narrateSelection",
+    "onCommand:voiceLayerLab.copyPrompt"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Voice Layer Lab",
+      "properties": {
+        "voiceLayerLab.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:4317",
+          "description": "Local Voice Layer Lab server URL. The Gemini API key stays in that server process."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "voiceLayerLab.start",
+        "title": "Voice Lab: Start"
+      },
+      {
+        "command": "voiceLayerLab.stop",
+        "title": "Voice Lab: Stop"
+      },
+      {
+        "command": "voiceLayerLab.openPanel",
+        "title": "Voice Lab: Open Panel"
+      },
+      {
+        "command": "voiceLayerLab.narrateSelection",
+        "title": "Voice Lab: Narrate Selection"
+      },
+      {
+        "command": "voiceLayerLab.copyPrompt",
+        "title": "Voice Lab: Copy Reviewed Prompt"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "voiceLayerLab.narrateSelection",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "voiceLayerLab",
+          "title": "Voice Lab",
+          "icon": "media/voice.svg"
+        }
+      ]
+    },
+    "views": {
+      "voiceLayerLab": [
+        {
+          "id": "voiceLayerLab.sidebar",
+          "name": "Voice Lab"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/vscode": "^1.134.0",
+    "typescript": "^7.0.2"
+  }
+}

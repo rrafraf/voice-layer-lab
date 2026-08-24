@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Layer Lab</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">GEMINI LIVE · LOCAL LAB</p>
+          <h1>Voice Layer</h1>
+          <p class="subtitle">One microphone. One provider. Visible turns.</p>
+        </div>
+        <div id="status" class="status idle"><span></span>Idle</div>
+      </header>
+
+      <section class="controls">
+        <button id="start" class="primary">Start listening</button>
+        <button id="stop" disabled>Stop</button>
+        <button id="mute">Mute Gemini</button>
+        <button id="download" disabled>Download transcript</button>
+      </section>
+
+      <section id="transcript" class="transcript" aria-live="polite">
+        <div class="empty">Your conversation will appear here.</div>
+      </section>
+
+      <section class="cursor-prompt" aria-labelledby="cursor-prompt-title">
+        <div class="diagnostics-header">
+          <div>
+            <p class="eyebrow">CURSOR HANDOFF</p>
+            <h2 id="cursor-prompt-title">Reviewable voice prompt</h2>
+          </div>
+          <div class="prompt-actions">
+            <button id="copy-prompt" disabled>Copy Cursor prompt</button>
+            <button id="clear-prompt" disabled>Clear</button>
+          </div>
+        </div>
+        <p class="section-copy">
+          User turns are collected into a prompt you can review before pasting into
+          Cursor. Nothing is sent to Cursor automatically.
+        </p>
+        <pre id="prompt-preview" class="prompt-preview">Your spoken Cursor prompt will appear here.</pre>
+      </section>
+
+      <section class="mic-lab" aria-labelledby="mic-lab-title">
+        <div class="diagnostics-header">
+          <div>
+            <p class="eyebrow">MICROPHONE A/B TEST</p>
+            <h2 id="mic-lab-title">Hear what the browser receives</h2>
+          </div>
+          <div id="mic-test-state" class="test-state">Ready</div>
+        </div>
+        <p class="section-copy">
+          Each test gives three audible countdown beeps, then records ten seconds.
+          Raw disables browser cleanup; Processed enables echo cancellation, noise
+          suppression, and automatic gain control.
+        </p>
+        <div class="test-controls">
+          <button id="record-raw">Record raw</button>
+          <button id="record-processed">Record processed</button>
+          <button id="stop-test" disabled>Stop test</button>
+        </div>
+        <div class="meter-shell" aria-label="Microphone input level">
+          <div id="mic-meter" class="meter-fill"></div>
+        </div>
+        <pre id="mic-settings" class="mic-settings">No capture yet.</pre>
+        <div class="recordings">
+          <article class="recording-card">
+            <div><span class="recording-label">RAW</span><span id="raw-summary">Not recorded</span></div>
+            <audio id="raw-audio" controls></audio>
+            <a id="raw-download" class="download-link" hidden>Download raw WAV</a>
+          </article>
+          <article class="recording-card">
+            <div><span class="recording-label processed">PROCESSED</span><span id="processed-summary">Not recorded</span></div>
+            <audio id="processed-audio" controls></audio>
+            <a id="processed-download" class="download-link" hidden>Download processed WAV</a>
+          </article>
+        </div>
+      </section>
+
+      <section class="diagnostics" aria-labelledby="diagnostics-title">
+        <div class="diagnostics-header">
+          <div><p class="eyebrow">LIVE DIAGNOSTICS</p><h2 id="diagnostics-title">Connection trace</h2></div>
+          <button id="copy-log">Copy log</button>
+        </div>
+        <ol id="event-log" class="event-log" aria-live="polite"></ol>
+      </section>
+
+      <footer>
+        Audio is live only while this page says Listening. Transcripts are not
+        written to disk unless you choose Download. Diagnostic events are saved
+        locally by the server without audio or API keys.
+      </footer>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

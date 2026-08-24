@@ -1,0 +1,30 @@
+{
+  "name": "voice-layer-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Provider-neutral realtime voice lab, starting with Gemini Live transcription.",
+  "scripts": {
+    "dev": "npm run build && node dist/src/cli.js",
+    "ui": "npm run build && node dist/src/server.js",
+    "mcp": "npm run build && node dist/src/mcp/server.js",
+    "read-clipboard": "npm run build && node dist/src/read-clipboard.js",
+    "extension:build": "npm --prefix extension run build",
+    "gate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-gate.ps1",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/tests/app.test.js",
+    "check": "npm run build && node --test dist/tests/app.test.js && npm run extension:build"
+  },
+  "dependencies": {
+    "@google/genai": "^2.18.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "dotenv": "^17.4.2",
+    "open": "^11.0.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^7.0.2"
+  }
+}
