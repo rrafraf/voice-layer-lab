@@ -51,7 +51,6 @@ const hearGemini = document.querySelector("#hear-gemini");
 const sessionToggle = document.querySelector("#session-toggle");
 const promptToggle = document.querySelector("#prompt-toggle");
 const steer = document.querySelector("#steer");
-const watchExtras = document.querySelector(".watch-extras");
 
 let socket;
 let stream;
@@ -389,7 +388,7 @@ function setTtsState(label, kind = "ok") {
 
 function setVideoState(label) {
   videoState.textContent = label;
-  videoState.hidden = label === "See off" || label === "Audio only" || / selected$/.test(label) || /JPEG/.test(label) || /1 FPS/.test(label);
+  videoState.hidden = label === "Audio only" || / selected$/.test(label);
 }
 
 function syncSessionToggle() {
@@ -405,10 +404,6 @@ function setFace(face) {
   for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
     tab.setAttribute("aria-selected", String(tab.dataset.face === face));
   }
-}
-
-function syncWatchExtras() {
-  watchExtras.hidden = videoSource.value === "none";
 }
 
 function sendLiveSession() {
@@ -1004,7 +999,6 @@ promptToggle.addEventListener("click", () => {
   promptToggle.setAttribute("aria-pressed", String(open));
 });
 videoSource.addEventListener("change", () => {
-  syncWatchExtras();
   void startVideo().catch((error) => {
     const message = error.message ?? String(error);
     logEvent("error", "Video source change failed", message);
@@ -1097,8 +1091,7 @@ window.addEventListener("beforeunload", () => {
   void stop(false);
 });
 void Promise.all([loadTtsCatalog(), loadLiveCatalog()]).catch((error) => {
-  ttsState.textContent = error.message ?? String(error);
+  setTtsState(formatUiError(error), "error");
   liveState.textContent = error.message ?? String(error);
   logEvent("error", "API catalog failed", error.message ?? String(error));
 });
-syncWatchExtras();

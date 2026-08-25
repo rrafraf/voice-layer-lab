@@ -60,6 +60,19 @@
             </details>
             <button id="mute" class="io-mute" data-trace-src="ui.mute" type="button" aria-pressed="true" title="Gemini audio out">Out</button>
             <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
+            <button id="prompt-toggle" type="button" aria-pressed="false">Prompt</button>
+            <details class="info">
+              <summary aria-label="About Conversation sources">i</summary>
+              <div class="info-pop">
+                Combinations: audio; audio + prompt; video + prompt; video +
+                audio + prompt. See sends camera or screen as JPEG snapshots
+                at 1 FPS. Pack, Preview, and Boxes are the Live video packing
+                controls. Prompt is the Live steer field. Out is her playback.
+              </div>
+            </details>
+          </div>
+
+          <section class="see" aria-label="What she sees">
             <label class="inline" for="video-source">
               See
               <select id="video-source" data-trace-src="ui.video">
@@ -68,20 +81,6 @@
                 <option value="screen">Screen</option>
               </select>
             </label>
-            <button id="prompt-toggle" type="button" aria-pressed="false">Prompt</button>
-            <span id="video-state" class="hint" hidden>See off</span>
-            <details class="info">
-              <summary aria-label="About Conversation sources">i</summary>
-              <div class="info-pop">
-                Combinations: audio; audio + prompt; video + prompt; video +
-                audio + prompt. See sends camera or screen as JPEG snapshots
-                at 1 FPS. Prompt is the Live steer field, not a hidden system
-                prompt editor. Out is her playback.
-              </div>
-            </details>
-          </div>
-
-          <div class="watch-extras" hidden>
             <label class="inline" for="video-pack">
               Pack
               <select id="video-pack" data-trace-src="ui.video">
@@ -99,9 +98,9 @@
               Boxes
             </label>
             <button id="pop-gemini-view" type="button">Pop out</button>
-          </div>
-
-          <video id="video-preview" autoplay playsinline muted></video>
+            <span id="video-state" class="hint">See off</span>
+            <video id="video-preview" autoplay playsinline muted></video>
+          </section>
 
           <section class="steer" id="steer" hidden aria-labelledby="live-lab-title">
             <h2 id="live-lab-title" class="sr-only">Steer</h2>
