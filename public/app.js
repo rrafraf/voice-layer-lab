@@ -916,8 +916,9 @@ function clearTranscript() {
 }
 
 function fillSelect(select, values, selected) {
+  const list = Array.isArray(values) ? values : [];
   select.replaceChildren();
-  for (const value of values) {
+  for (const value of list) {
     const option = document.createElement("option");
     if (typeof value === "string") {
       option.value = value;
@@ -931,17 +932,24 @@ function fillSelect(select, values, selected) {
   }
 }
 
+async function readCatalog(path) {
+  const response = await fetch(path);
+  const catalog = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(catalog?.error ?? `${path} HTTP ${response.status}`);
+  }
+  return catalog;
+}
+
 async function loadTtsCatalog() {
-  const response = await fetch("/api/tts");
-  const catalog = await response.json();
+  const catalog = await readCatalog("/api/tts");
   fillSelect(ttsModel, catalog.models, catalog.defaultModel);
   fillSelect(ttsVoice, catalog.voices, catalog.defaultVoice);
   setTtsState("Ready");
 }
 
 async function loadLiveCatalog() {
-  const response = await fetch("/api/live");
-  const catalog = await response.json();
+  const catalog = await readCatalog("/api/live");
   fillSelect(liveVoice, catalog.voices, catalog.defaultVoice);
   liveState.textContent = `${liveMode.value} · ${liveVoice.value}`;
 }
@@ -1090,8 +1098,11 @@ window.addEventListener("beforeunload", () => {
   if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
   void stop(false);
 });
-void Promise.all([loadTtsCatalog(), loadLiveCatalog()]).catch((error) => {
+void loadTtsCatalog().catch((error) => {
   setTtsState(formatUiError(error), "error");
+  logEvent("error", "TTS catalog failed", error.message ?? String(error));
+});
+void loadLiveCatalog().catch((error) => {
   liveState.textContent = error.message ?? String(error);
-  logEvent("error", "API catalog failed", error.message ?? String(error));
+  logEvent("error", "Live catalog failed", error.message ?? String(error));
 });
