@@ -535,7 +535,7 @@ async function copyCursorPrompt() {
   await navigator.clipboard.writeText(prompt);
   copyPromptButton.textContent = "Copied";
   logEvent("ok", "Cursor prompt copied", `${prompt.length} characters`);
-  setTimeout(() => { copyPromptButton.textContent = "Copy Cursor prompt"; }, 1200);
+  setTimeout(() => { copyPromptButton.textContent = "Copy"; }, 1200);
 }
 
 function clearTranscript() {
@@ -548,7 +548,7 @@ function clearTranscript() {
   const title = document.createElement("strong");
   title.textContent = "No conversation yet";
   const hint = document.createElement("span");
-  hint.textContent = "Start listening to see Live turns here.";
+  hint.textContent = "Listen to capture Live turns.";
   empty.append(title, hint);
   transcript.append(empty);
   downloadButton.disabled = true;
@@ -635,7 +635,7 @@ muteButton.addEventListener("click", () => {
   muted = !muted;
   if (muted) stopPlayback();
   muteButton.classList.toggle("active", muted);
-  muteButton.textContent = muted ? "Unmute Gemini" : "Mute Gemini";
+  muteButton.textContent = muted ? "Unmute" : "Mute";
 });
 downloadButton.addEventListener("click", downloadTranscript);
 copyPromptButton.addEventListener("click", () => void copyCursorPrompt());
