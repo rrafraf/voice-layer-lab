@@ -255,10 +255,6 @@ h2 { margin: 0; font-size: 15px; }
   color: var(--danger);
   background: rgba(255, 107, 107, .1);
 }
-#prompt-toggle {
-  position: relative;
-  z-index: 13;
-}
 #prompt-toggle[aria-pressed="true"] { border-color: var(--live); color: var(--live); }
 .steer-head {
   display: flex;
