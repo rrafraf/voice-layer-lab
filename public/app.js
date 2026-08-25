@@ -48,6 +48,10 @@ const livePrompt = document.querySelector("#live-prompt");
 const liveSendButton = document.querySelector("#live-send");
 const liveState = document.querySelector("#live-state");
 const hearGemini = document.querySelector("#hear-gemini");
+const sessionToggle = document.querySelector("#session-toggle");
+const promptToggle = document.querySelector("#prompt-toggle");
+const steer = document.querySelector("#steer");
+const watchExtras = document.querySelector(".watch-extras");
 
 let socket;
 let stream;
@@ -57,6 +61,7 @@ let outputContext;
 let playbackCursor = 0;
 let muted = false;
 let muteReason = "user";
+let sessionArmed = false;
 const activeSources = new Set();
 const turns = [];
 let micTest;
@@ -133,6 +138,7 @@ function setMicButtons(recording) {
   recordProcessedButton.disabled = recording;
   stopTestButton.disabled = !recording;
   startButton.disabled = recording;
+  sessionToggle.disabled = recording;
 }
 
 async function recordMicTest(mode) {
@@ -356,7 +362,8 @@ function setMuted(nextMuted, reason = "user") {
     void outputContext.resume();
   }
   muteButton.classList.toggle("active", muted);
-  muteButton.textContent = muted ? "Hear her off" : "Hear her";
+  muteButton.classList.toggle("off", muted);
+  muteButton.textContent = "Out";
   muteButton.setAttribute("aria-pressed", muted ? "false" : "true");
   hearGemini.checked = !muted;
   traceLog("info", "ui.mute", muted ? "on" : "off", reason);
@@ -364,7 +371,26 @@ function setMuted(nextMuted, reason = "user") {
 
 function setVideoState(label) {
   videoState.textContent = label;
-  videoState.hidden = label === "Audio only" || / selected$/.test(label);
+  videoState.hidden = label === "See off" || label === "Audio only" || / selected$/.test(label) || /JPEG/.test(label) || /1 FPS/.test(label);
+}
+
+function syncSessionToggle() {
+  const running = sessionArmed || Boolean(socket || stream);
+  sessionToggle.textContent = running ? "Stop" : "Start";
+  sessionToggle.classList.toggle("running", running);
+}
+
+function setFace(face) {
+  document.body.dataset.face = face;
+  document.querySelector("#face-live").hidden = face !== "live";
+  document.querySelector("#face-tts").hidden = face !== "tts";
+  for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
+    tab.setAttribute("aria-selected", String(tab.dataset.face === face));
+  }
+}
+
+function syncWatchExtras() {
+  watchExtras.hidden = videoSource.value === "none";
 }
 
 function sendLiveSession() {
@@ -682,8 +708,10 @@ async function startScreenCapture() {
 }
 
 async function start() {
-  if (socket || stream) return;
+  if (socket || stream || sessionArmed) return;
+  sessionArmed = true;
   startButton.disabled = true;
+  syncSessionToggle();
   setStatus("Connecting…");
   logEvent("info", "Start requested");
   traceLog("info", "ui.start", "click");
@@ -829,9 +857,11 @@ async function stop(resetStatus = true) {
   await outputContext?.close();
   outputContext = undefined;
   finishTranscriptTurn();
+  sessionArmed = false;
   startButton.disabled = false;
   stopButton.disabled = true;
   liveSendButton.disabled = true;
+  syncSessionToggle();
   if (resetStatus) setStatus("Idle");
 }
 
@@ -943,7 +973,20 @@ async function speakWithTts() {
 
 startButton.addEventListener("click", start);
 stopButton.addEventListener("click", () => stop());
+sessionToggle.addEventListener("click", () => {
+  if (sessionArmed || socket || stream) void stop();
+  else void start();
+});
+for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
+  tab.addEventListener("click", () => setFace(tab.dataset.face));
+}
+promptToggle.addEventListener("click", () => {
+  const open = steer.hidden;
+  steer.hidden = !open;
+  promptToggle.setAttribute("aria-pressed", String(open));
+});
 videoSource.addEventListener("change", () => {
+  syncWatchExtras();
   void startVideo().catch((error) => {
     const message = error.message ?? String(error);
     logEvent("error", "Video source change failed", message);
@@ -1040,3 +1083,4 @@ void Promise.all([loadTtsCatalog(), loadLiveCatalog()]).catch((error) => {
   liveState.textContent = error.message ?? String(error);
   logEvent("error", "API catalog failed", error.message ?? String(error));
 });
+syncWatchExtras();

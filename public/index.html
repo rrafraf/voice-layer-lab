@@ -25,104 +25,147 @@
       });
     </script>
   </head>
-  <body>
+  <body data-face="live">
     <main>
-      <header class="mast">
+      <header class="app-header">
         <h1>Voice Layer</h1>
-        <p class="mast-note">Local Gemini Live lab</p>
+        <div class="mode-switch" role="tablist" aria-label="Lab mode">
+          <button type="button" role="tab" id="tab-live" data-face="live" aria-controls="face-live" aria-selected="true">Conversation</button>
+          <button type="button" role="tab" id="tab-tts" data-face="tts" aria-controls="face-tts" aria-selected="false">Exact text</button>
+        </div>
+        <details class="info">
+          <summary aria-label="About this lab">i</summary>
+          <div class="info-pop">
+            One job at a time. Conversation is Gemini Live. Exact text is
+            request/response TTS. Trace is the dock at the bottom-left.
+          </div>
+        </details>
       </header>
 
-      <section class="session" aria-label="Session">
-        <div id="status" class="status idle"><span></span>Idle</div>
-        <button id="start" class="primary">Listen</button>
-        <button id="stop" disabled>Stop</button>
-        <button id="mute" data-trace-src="ui.mute" aria-pressed="true">Hear her</button>
-        <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
-        <button id="download" disabled>Save</button>
-      </section>
-
-      <section class="see" aria-label="What she sees">
-        <label class="field">
-          See
-          <select id="video-source" data-trace-src="ui.video">
-            <option value="none">Off</option>
-            <option value="camera">Camera</option>
-            <option value="screen">Screen</option>
-          </select>
-        </label>
-        <label class="field">
-          Pack
-          <select id="video-pack" data-trace-src="ui.video">
-            <option value="current">Frame</option>
-            <option value="motion" selected>Motion</option>
-            <option value="motion-strip">Strip</option>
-          </select>
-        </label>
-        <label class="toggle">
-          <input id="show-gemini-view" type="checkbox" />
-          Preview
-        </label>
-        <label class="toggle">
-          <input id="map-objects" type="checkbox" />
-          Boxes
-        </label>
-        <button id="pop-gemini-view" type="button">Pop out</button>
-        <span id="video-state" class="hint">See off</span>
-        <video id="video-preview" autoplay playsinline muted></video>
-      </section>
-
-      <section class="steer" aria-labelledby="live-lab-title">
-        <h2 id="live-lab-title" class="sr-only">Steer</h2>
-        <div class="steer-row">
-          <span id="live-state" class="hint">Ready</span>
-          <label class="field">
-            Mode
-            <select id="live-mode">
-              <option value="conversation">Talk</option>
-              <option value="narration">Narrate</option>
-              <option value="transcribe">Transcribe</option>
-            </select>
-          </label>
-          <label class="field">
-            Voice
-            <select id="live-voice"></select>
-          </label>
-          <label class="field feel">
-            Feel
-            <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" placeholder="calm, unhurried, one short answer then wait" />
-          </label>
-        </div>
-        <div class="steer-row">
-          <textarea id="live-prompt" rows="2" placeholder="Steer, then Send. Example: Read the error on screen."></textarea>
-          <button id="live-send" disabled>Send</button>
-        </div>
-      </section>
-
-      <section id="transcript" class="transcript" aria-live="polite">
-        <div class="empty">Conversation lands here.</div>
-      </section>
-
-      <details class="lab-more">
-        <summary>Cursor handoff</summary>
-        <section class="cursor-prompt" aria-labelledby="cursor-prompt-title">
-          <div class="diagnostics-header">
-            <h2 id="cursor-prompt-title">Review before paste</h2>
-            <div class="prompt-actions">
-              <button id="copy-prompt" disabled>Copy</button>
-              <button id="clear-prompt" disabled>Clear</button>
+      <section class="face face-live" id="face-live" role="tabpanel" aria-labelledby="tab-live">
+        <div class="talk-stage">
+          <div class="session-core">
+            <button id="session-toggle" class="start-stop" type="button">Start</button>
+            <div class="sr-only">
+              <button id="start" class="primary" type="button">Listen</button>
+              <button id="stop" type="button" disabled>Stop</button>
             </div>
+            <div id="status" class="status idle"><span></span>Idle</div>
           </div>
-          <p class="section-copy">Your turns only. Nothing is sent to Cursor until you paste.</p>
-          <pre id="prompt-preview" class="prompt-preview">Spoken Cursor prompt lands here.</pre>
-        </section>
-      </details>
 
-      <details class="lab-more">
-        <summary>TTS recitation</summary>
-        <section class="tts-lab" aria-labelledby="tts-lab-title">
+          <div class="io-row">
+            <details class="info source-info">
+              <summary class="source-chip on">Mic</summary>
+              <div class="info-pop">Audio in is on while listening. Start/Stop is the mic, not her playback.</div>
+            </details>
+            <button id="mute" class="io-mute" data-trace-src="ui.mute" type="button" aria-pressed="true" title="Gemini audio out">Out</button>
+            <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
+            <label class="inline" for="video-source">
+              See
+              <select id="video-source" data-trace-src="ui.video">
+                <option value="none">Off</option>
+                <option value="camera">Camera</option>
+                <option value="screen">Screen</option>
+              </select>
+            </label>
+            <button id="prompt-toggle" type="button" aria-pressed="false">Prompt</button>
+            <span id="video-state" class="hint" hidden>See off</span>
+            <details class="info">
+              <summary aria-label="About Conversation sources">i</summary>
+              <div class="info-pop">
+                Combinations: audio; audio + prompt; video + prompt; video +
+                audio + prompt. See sends camera or screen as JPEG snapshots
+                at 1 FPS. Prompt is the Live steer field, not a hidden system
+                prompt editor. Out is her playback.
+              </div>
+            </details>
+          </div>
+
+          <div class="watch-extras" hidden>
+            <label class="inline" for="video-pack">
+              Pack
+              <select id="video-pack" data-trace-src="ui.video">
+                <option value="current">Frame</option>
+                <option value="motion" selected>Motion</option>
+                <option value="motion-strip">Strip</option>
+              </select>
+            </label>
+            <label class="toggle">
+              <input id="show-gemini-view" type="checkbox" />
+              Preview
+            </label>
+            <label class="toggle">
+              <input id="map-objects" type="checkbox" />
+              Boxes
+            </label>
+            <button id="pop-gemini-view" type="button">Pop out</button>
+          </div>
+
+          <video id="video-preview" autoplay playsinline muted></video>
+
+          <section class="steer" id="steer" hidden aria-labelledby="live-lab-title">
+            <h2 id="live-lab-title" class="sr-only">Steer</h2>
+            <div class="steer-row">
+              <span id="live-state" class="hint">Ready</span>
+              <label class="inline" for="live-mode">
+                Mode
+                <select id="live-mode">
+                  <option value="conversation">Talk</option>
+                  <option value="narration">Narrate</option>
+                  <option value="transcribe">Transcribe</option>
+                </select>
+              </label>
+              <label class="inline" for="live-voice">
+                Voice
+                <select id="live-voice"></select>
+              </label>
+              <label class="inline feel" for="live-style">
+                Feel
+                <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" placeholder="calm, unhurried, one short answer then wait" />
+              </label>
+            </div>
+            <div class="steer-row">
+              <textarea id="live-prompt" rows="2" placeholder="Steer, then Send. Example: Read the error on screen."></textarea>
+              <button id="live-send" type="button" disabled>Send</button>
+            </div>
+          </section>
+
+          <section id="transcript" class="transcript" aria-live="polite">
+            <div class="empty">Conversation lands here.</div>
+          </section>
+
+          <div class="canvas-actions">
+            <button id="download" type="button" disabled>Download transcript</button>
+          </div>
+
+          <details class="lab-more">
+            <summary>Cursor handoff</summary>
+            <section class="cursor-prompt" aria-labelledby="cursor-prompt-title">
+              <div class="diagnostics-header">
+                <h2 id="cursor-prompt-title">Review before paste</h2>
+                <div class="prompt-actions">
+                  <button id="copy-prompt" type="button" disabled>Copy</button>
+                  <button id="clear-prompt" type="button" disabled>Clear</button>
+                </div>
+              </div>
+              <pre id="prompt-preview" class="prompt-preview">Spoken Cursor prompt lands here.</pre>
+            </section>
+          </details>
+        </div>
+      </section>
+
+      <section class="face face-tts" id="face-tts" role="tabpanel" aria-labelledby="tab-tts" hidden>
+        <article class="tts-lab" aria-labelledby="tts-lab-title">
           <div class="diagnostics-header">
-            <h2 id="tts-lab-title">Exact text, one shot</h2>
+            <h2 id="tts-lab-title">Exact text recitation</h2>
             <div id="tts-state" class="test-state">Ready</div>
+            <details class="info">
+              <summary aria-label="About TTS">i</summary>
+              <div class="info-pop">
+                Request/response recitation, not Live. Speaks the text you
+                type, once, with a chosen voice and optional style prompt.
+              </div>
+            </details>
           </div>
           <div class="tts-grid">
             <label>
@@ -142,16 +185,19 @@
             <input id="tts-exact" type="checkbox" checked />
             Recite exactly
           </label>
-          <textarea id="tts-text" rows="4" placeholder="Text for TTS to speak."></textarea>
+          <label class="tts-text-field">
+            Text to speak
+            <textarea id="tts-text" rows="10" placeholder="Text for TTS to speak."></textarea>
+          </label>
           <div class="test-controls">
-            <button id="tts-speak" class="primary">Speak</button>
+            <button id="tts-speak" class="primary" type="button">Speak</button>
           </div>
           <audio id="tts-audio" controls></audio>
           <a id="tts-download" class="download-link" hidden>Download WAV</a>
-        </section>
-      </details>
+        </article>
+      </section>
 
-      <details class="lab-more">
+      <details class="lab-more tools-more">
         <summary>Mic A/B</summary>
         <section class="mic-lab" aria-labelledby="mic-lab-title">
           <div class="diagnostics-header">
@@ -159,9 +205,9 @@
             <div id="mic-test-state" class="test-state">Ready</div>
           </div>
           <div class="test-controls">
-            <button id="record-raw">Raw</button>
-            <button id="record-processed">Processed</button>
-            <button id="stop-test" disabled>Stop</button>
+            <button id="record-raw" type="button">Raw</button>
+            <button id="record-processed" type="button">Processed</button>
+            <button id="stop-test" type="button" disabled>Stop</button>
           </div>
           <div class="meter-shell" aria-label="Microphone input level">
             <div id="mic-meter" class="meter-fill"></div>
@@ -181,12 +227,6 @@
           </div>
         </section>
       </details>
-
-      <footer>
-        Listen = mic on. Stop = mic off. Hear her = her playback, not your mic.
-        See is camera or screen JPEGs at 1 FPS. Trace is the bottom-left bar;
-        file is <code>logs/voice-layer.log</code>.
-      </footer>
     </main>
     <aside id="trace-dock" class="trace-dock">
       <div class="trace-dock-bar">
