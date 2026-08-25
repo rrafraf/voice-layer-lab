@@ -52,6 +52,8 @@ const sessionToggle = document.querySelector("#session-toggle");
 const muteMeButton = document.querySelector("#mute-me");
 const promptToggle = document.querySelector("#prompt-toggle");
 const promptSizeButton = document.querySelector("#prompt-size");
+const promptGrowButton = document.querySelector("#prompt-grow");
+const promptShrinkButton = document.querySelector("#prompt-shrink");
 const cameraToggle = document.querySelector("#camera-toggle");
 const audioDirButtons = [...document.querySelectorAll(".audio-dir [data-dir]")];
 
@@ -405,14 +407,30 @@ function setAudioDir(dir) {
   setMuted(false, "audio-dir");
 }
 
+const PROMPT_MIN_ROWS = 1;
+const PROMPT_MAX_ROWS = 9;
+const PROMPT_LINE_PX = 22;
+
+function setPromptRows(rows) {
+  const next = Math.max(PROMPT_MIN_ROWS, Math.min(PROMPT_MAX_ROWS, Number(rows) || PROMPT_MIN_ROWS));
+  livePrompt.rows = next;
+  const height = `${Math.max(34, next * PROMPT_LINE_PX)}px`;
+  livePrompt.style.minHeight = height;
+  livePrompt.style.maxHeight = height;
+  livePrompt.classList.toggle("is-expanded", next > 1);
+  promptSizeButton.setAttribute("aria-pressed", String(next > 1));
+  promptToggle.setAttribute("aria-pressed", String(next > 1));
+  promptToggle.setAttribute("aria-expanded", String(next > 1));
+  promptShrinkButton.disabled = next <= PROMPT_MIN_ROWS;
+  promptGrowButton.disabled = next >= PROMPT_MAX_ROWS;
+}
+
 function setPromptExpanded(expanded) {
-  const open = Boolean(expanded);
-  livePrompt.classList.toggle("is-expanded", open);
-  livePrompt.rows = open ? 5 : 1;
-  promptSizeButton.setAttribute("aria-pressed", String(open));
-  promptSizeButton.textContent = open ? "Less prompt" : "More prompt";
-  promptToggle.setAttribute("aria-pressed", String(open));
-  promptToggle.setAttribute("aria-expanded", String(open));
+  setPromptRows(expanded ? 5 : 1);
+}
+
+function nudgePrompt(delta) {
+  setPromptRows((Number(livePrompt.rows) || 1) + delta);
 }
 
 function setPromptOpen(open) {
@@ -1058,13 +1076,11 @@ sessionToggle.addEventListener("click", () => {
   if (sessionArmed || socket || stream) void stop();
   else void start();
 });
-promptToggle.addEventListener("click", () => {
-  setPromptExpanded(!livePrompt.classList.contains("is-expanded"));
-});
-document.querySelector("#steer-close").addEventListener("click", () => setPromptExpanded(false));
-promptSizeButton.addEventListener("click", () => {
-  setPromptExpanded(!livePrompt.classList.contains("is-expanded"));
-});
+promptToggle.addEventListener("click", () => nudgePrompt(2));
+document.querySelector("#steer-close").addEventListener("click", () => setPromptRows(1));
+promptSizeButton.addEventListener("click", () => nudgePrompt(2));
+promptGrowButton.addEventListener("click", () => nudgePrompt(2));
+promptShrinkButton.addEventListener("click", () => nudgePrompt(-2));
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") setPromptExpanded(false);
 });
@@ -1150,11 +1166,14 @@ hearGemini.addEventListener("change", () => {
 liveSendButton.addEventListener("click", sendLivePrompt);
 livePrompt.addEventListener("keydown", (event) => {
   if (event.key !== "Enter") return;
-  const expanded = livePrompt.classList.contains("is-expanded");
-  if (!expanded || event.ctrlKey || event.metaKey) {
+  const tall = (Number(livePrompt.rows) || 1) > 1;
+  if (!tall || event.ctrlKey || event.metaKey) {
     event.preventDefault();
     sendLivePrompt();
   }
+});
+liveStyle.addEventListener("change", () => {
+  if (socket?.readyState === WebSocket.OPEN) sendLiveSession();
 });
 liveMode.addEventListener("change", () => {
   if (liveMode.value === "transcribe") setMuted(true, "transcribe");

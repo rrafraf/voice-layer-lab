@@ -35,7 +35,7 @@
             <div class="info-pop">
               Conversation is Gemini Live. Prompt under Start steers the next
               output; it is not the transcript. Camera is on/off with a small
-              preview to the right of Start. Trace stays on the right edge.
+              preview to the right of Start. Trace is a bottom-right overlay.
             </div>
           </details>
         </div>
@@ -56,6 +56,7 @@
               Voice
               <select id="live-voice"></select>
             </label>
+            <input id="live-style" type="text" maxlength="80" placeholder="warm, calm, angry" title="How the voice should sound" />
           </aside>
 
           <div class="center-col">
@@ -88,18 +89,20 @@
                     <option value="transcribe">Transcribe</option>
                   </select>
                 </label>
-                <label class="inline feel" for="live-style">
+                <label class="inline feel chrome-hide">
                   Feel
-                  <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" placeholder="calm, unhurried, one short answer then wait" />
                 </label>
               </div>
-              <textarea id="live-prompt" rows="1" placeholder="Steer Gemini’s next output. This is not the transcript."></textarea>
+              <div class="prompt-row">
+                <button type="button" id="prompt-shrink" class="prompt-step" aria-label="Shorter prompt" title="Shorter prompt">−</button>
+                <textarea id="live-prompt" rows="1" placeholder="Steer Gemini’s next output. This is not the transcript."></textarea>
+                <button type="button" id="prompt-grow" class="prompt-step" aria-label="Taller prompt" title="Taller prompt">+</button>
+              </div>
+              <div class="prompt-apply-row">
+                <button type="button" id="prompt-size" class="chrome-hide" aria-pressed="false">More prompt</button>
+                <button id="live-send" type="button" disabled>Apply</button>
+              </div>
             </section>
-
-            <div class="prompt-size-row">
-              <button type="button" id="prompt-size" aria-pressed="false">More prompt</button>
-              <button id="live-send" type="button" disabled>Send</button>
-            </div>
 
             <textarea id="transcript" class="transcript" aria-live="polite" placeholder="Conversation lands here."></textarea>
 
@@ -231,10 +234,11 @@
         </section>
       </details>
     </main>
-    <aside id="trace-dock" class="trace-dock">
+    <aside id="trace-dock" class="trace-dock collapsed">
       <button type="button" id="trace-resize" class="trace-resize" aria-label="Resize Trace"></button>
+      <ol id="trace-log" class="trace-log" aria-live="polite"></ol>
       <div class="trace-dock-bar">
-        <button type="button" id="trace-toggle" aria-expanded="true">▾ Trace</button>
+        <button type="button" id="trace-toggle" aria-expanded="false">Trace</button>
         <span id="trace-last" class="trace-last"></span>
         <label class="trace-level-label">lvl
           <select id="trace-level">
@@ -250,7 +254,6 @@
         <button type="button" id="trace-copy">Copy</button>
         <button type="button" id="trace-clear">Clear</button>
       </div>
-      <ol id="trace-log" class="trace-log" aria-live="polite"></ol>
     </aside>
     <aside id="gemini-view-dock" class="gemini-dock" hidden>
       <div id="gemini-view-drag" class="gemini-dock-bar">
