@@ -50,8 +50,9 @@ const liveState = document.querySelector("#live-state");
 const hearGemini = document.querySelector("#hear-gemini");
 const sessionToggle = document.querySelector("#session-toggle");
 const muteMeButton = document.querySelector("#mute-me");
-const audioSteer = document.querySelector("#audio-steer");
-const videoSteer = document.querySelector("#video-steer");
+const promptToggle = document.querySelector("#prompt-toggle");
+const steerPanel = document.querySelector("#steer");
+const audioDirButtons = [...document.querySelectorAll(".audio-dir [data-dir]")];
 
 let socket;
 let stream;
@@ -345,6 +346,7 @@ function setMuted(nextMuted, reason = "user") {
   const next = Boolean(nextMuted);
   if (muted === next) {
     muteReason = reason;
+    syncAudioDir();
     return;
   }
   muted = next;
@@ -361,6 +363,7 @@ function setMuted(nextMuted, reason = "user") {
   muteButton.setAttribute("aria-pressed", muted ? "false" : "true");
   hearGemini.checked = !muted;
   traceLog("info", "ui.mute", muted ? "on" : "off", reason);
+  syncAudioDir();
 }
 
 function setInputMuted(nextMuted, reason = "user") {
@@ -369,19 +372,42 @@ function setInputMuted(nextMuted, reason = "user") {
   muteMeButton.classList.toggle("off", inputMuted);
   muteMeButton.setAttribute("aria-pressed", String(inputMuted));
   traceLog("info", "ui.mic", inputMuted ? "muted" : "open", reason);
+  syncAudioDir();
 }
 
-function joinedSteerText() {
-  const audio = audioSteer.value.trim();
-  const video = videoSteer.value.trim();
-  const parts = [];
-  if (audio) parts.push(`Audio: ${audio}`);
-  if (video) parts.push(`Video: ${video}`);
-  return parts.join("\n");
+function currentAudioDir() {
+  if (!inputMuted && muted) return "in";
+  if (inputMuted && !muted) return "out";
+  if (!inputMuted && !muted) return "both";
+  return "";
 }
 
-function syncLivePrompt() {
-  livePrompt.value = joinedSteerText();
+function syncAudioDir() {
+  const dir = currentAudioDir();
+  for (const button of audioDirButtons) {
+    button.setAttribute("aria-pressed", String(button.dataset.dir === dir));
+  }
+}
+
+function setAudioDir(dir) {
+  if (dir === "in") {
+    setInputMuted(false, "audio-dir");
+    setMuted(true, "audio-dir");
+    return;
+  }
+  if (dir === "out") {
+    setInputMuted(true, "audio-dir");
+    setMuted(false, "audio-dir");
+    return;
+  }
+  setInputMuted(false, "audio-dir");
+  setMuted(false, "audio-dir");
+}
+
+function setPromptOpen(open) {
+  steerPanel.toggleAttribute("hidden", !open);
+  promptToggle.setAttribute("aria-pressed", String(open));
+  promptToggle.setAttribute("aria-expanded", String(open));
 }
 
 function formatUiError(error) {
@@ -410,6 +436,7 @@ function setVideoState(label) {
 function syncSessionToggle() {
   const running = sessionArmed || Boolean(socket || stream);
   sessionToggle.classList.toggle("running", running);
+  sessionToggle.textContent = running ? "Stop" : "Start";
   sessionToggle.title = running ? "Stop" : "Start";
   sessionToggle.setAttribute("aria-label", running ? "Stop session" : "Start session");
   sessionToggle.setAttribute("aria-pressed", String(running));
@@ -439,7 +466,6 @@ function sendLiveSession() {
 }
 
 function sendLivePrompt() {
-  syncLivePrompt();
   const text = livePrompt.value.trim();
   if (!text) return;
   if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -1008,6 +1034,12 @@ sessionToggle.addEventListener("click", () => {
   if (sessionArmed || socket || stream) void stop();
   else void start();
 });
+promptToggle.addEventListener("click", () => {
+  setPromptOpen(steerPanel.hasAttribute("hidden"));
+});
+for (const button of audioDirButtons) {
+  button.addEventListener("click", () => setAudioDir(button.dataset.dir));
+}
 for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
   tab.addEventListener("click", () => setFace(tab.dataset.face));
 }
@@ -1083,15 +1115,6 @@ livePrompt.addEventListener("keydown", (event) => {
     sendLivePrompt();
   }
 });
-for (const field of [audioSteer, videoSteer]) {
-  field.addEventListener("input", syncLivePrompt);
-  field.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      sendLivePrompt();
-    }
-  });
-}
 liveMode.addEventListener("change", () => {
   if (liveMode.value === "transcribe") setMuted(true, "transcribe");
   else if (muteReason === "transcribe") setMuted(false, "mode");
@@ -1121,4 +1144,6 @@ void loadLiveCatalog().catch((error) => {
   liveState.textContent = error.message ?? String(error);
   logEvent("error", "Live catalog failed", error.message ?? String(error));
 });
-syncLivePrompt();
+syncSessionToggle();
+syncAudioDir();
+setPromptOpen(false);

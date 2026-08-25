@@ -34,8 +34,8 @@
             <summary aria-label="About this lab">i</summary>
             <div class="info-pop">
               Conversation is Gemini Live. Exact text is request/response TTS.
-              Trace is pinned top-right. The two prompt boxes join into one
-              Live steer string: Audio: … then Video: ….
+              Trace is pinned top-right. Prompt steers Gemini’s next output;
+              it is not the transcript.
             </div>
           </details>
         </div>
@@ -52,32 +52,25 @@
               <button id="mute-me" class="io-mute" type="button" aria-pressed="false" title="Mute my microphone">Me</button>
               <button id="mute" class="io-mute" data-trace-src="ui.mute" type="button" aria-pressed="true" title="Gemini audio out">Out</button>
               <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
+              <button id="prompt-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="steer" title="Steer Gemini’s next output">Prompt</button>
               <label class="inline" for="live-voice">
                 Voice
                 <select id="live-voice"></select>
               </label>
-              <span id="live-state" class="hint">Ready</span>
             </aside>
 
-            <div class="power-hub">
-              <label class="side-prompt" for="audio-steer">
-                Audio
-                <textarea id="audio-steer" rows="3" placeholder="How audio should affect I/O"></textarea>
-              </label>
-              <span class="route-line left" aria-hidden="true"></span>
-              <div class="power-core">
-                <button id="session-toggle" class="start-stop" type="button" title="Start" aria-label="Start session" aria-pressed="false"></button>
-                <div class="sr-only">
-                  <button id="start" class="primary" type="button">Listen</button>
-                  <button id="stop" type="button" disabled>Stop</button>
-                </div>
-                <div id="status" class="status idle"><span></span>Idle</div>
+            <div class="session-core">
+              <button id="session-toggle" class="start-stop" type="button" title="Start" aria-label="Start session">Start</button>
+              <div class="sr-only">
+                <button id="start" class="primary" type="button">Listen</button>
+                <button id="stop" type="button" disabled>Stop</button>
               </div>
-              <span class="route-line right" aria-hidden="true"></span>
-              <label class="side-prompt" for="video-steer">
-                Video
-                <textarea id="video-steer" rows="3" placeholder="How video should affect output"></textarea>
-              </label>
+              <div id="status" class="status idle"><span></span>Idle</div>
+              <div class="audio-dir" role="radiogroup" aria-label="Audio direction">
+                <button type="button" id="audio-dir-in" data-dir="in" title="Hear me only" aria-pressed="false">↓</button>
+                <button type="button" id="audio-dir-both" data-dir="both" title="Both ways" aria-pressed="true">↕</button>
+                <button type="button" id="audio-dir-out" data-dir="out" title="Hear her only" aria-pressed="false">↑</button>
+              </div>
             </div>
 
             <section class="see" aria-label="What she sees">
@@ -109,21 +102,32 @@
               <span id="video-state" class="hint">See off</span>
               <video id="video-preview" autoplay playsinline muted></video>
             </section>
+
+            <section class="steer" id="steer" hidden aria-labelledby="live-lab-title">
+              <h2 id="live-lab-title" class="sr-only">Steer</h2>
+              <div class="steer-row">
+                <span id="live-state" class="hint">Ready</span>
+                <label class="inline" for="live-mode">
+                  Mode
+                  <select id="live-mode">
+                    <option value="conversation" selected>Talk</option>
+                    <option value="narration">Narrate</option>
+                    <option value="transcribe">Transcribe</option>
+                  </select>
+                </label>
+                <label class="inline feel" for="live-style">
+                  Feel
+                  <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" placeholder="calm, unhurried, one short answer then wait" />
+                </label>
+              </div>
+              <div class="steer-row">
+                <textarea id="live-prompt" rows="3" placeholder="Steer Gemini’s next output, then Send. This is not the transcript."></textarea>
+                <button id="live-send" type="button" disabled>Send</button>
+              </div>
+            </section>
           </div>
 
-          <div class="sr-only" id="steer" aria-labelledby="live-lab-title">
-            <h2 id="live-lab-title">Steer</h2>
-            <select id="live-mode">
-              <option value="conversation" selected>Talk</option>
-              <option value="narration">Narrate</option>
-              <option value="transcribe">Transcribe</option>
-            </select>
-            <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" />
-            <textarea id="live-prompt" rows="2"></textarea>
-            <button id="live-send" type="button" disabled>Send</button>
-          </div>
-
-          <textarea id="transcript" class="transcript" aria-live="polite" placeholder="Conversation lands here. Edit freely."></textarea>
+          <textarea id="transcript" class="transcript" aria-live="polite" placeholder="Conversation lands here."></textarea>
 
           <div class="canvas-actions">
             <button id="clear-prompt" type="button" disabled>Clear</button>
