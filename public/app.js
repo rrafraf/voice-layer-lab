@@ -1078,15 +1078,17 @@ for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
   tab.addEventListener("click", () => setFace(tab.dataset.face));
 }
 videoSource.addEventListener("change", () => {
-  syncCameraToggle();
-  void startVideo().catch((error) => {
-    const message = error.message ?? String(error);
-    logEvent("error", "Video source change failed", message);
-    setVideoState(message);
-    setGeminiEmpty(message);
-    videoSource.value = "none";
-    syncCameraToggle();
-  });
+  void startVideo()
+    .catch((error) => {
+      const message = error.message ?? String(error);
+      logEvent("error", "Video source change failed", message);
+      setVideoState(message);
+      setGeminiEmpty(message);
+      videoSource.value = "none";
+    })
+    .finally(() => {
+      syncCameraToggle();
+    });
 });
 videoPack.addEventListener("change", () => {
   if (videoStream) {
