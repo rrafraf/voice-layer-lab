@@ -25,109 +25,113 @@
       });
     </script>
   </head>
-  <body data-face="live">
+  <body data-face="live" data-job="talk">
     <main>
       <header class="app-header">
-        <h1>Voice Layer</h1>
+        <div class="brand">
+          <h1>Voice Layer</h1>
+          <details class="info">
+            <summary aria-label="About this lab">i</summary>
+            <div class="info-pop">
+            One job at a time. Conversation is Gemini Live. Exact text is
+            request/response TTS. Trace is pinned top-right. Pick Talk, See,
+            or Transcribe, then press the square.
+            </div>
+          </details>
+        </div>
         <div class="mode-switch" role="tablist" aria-label="Lab mode">
           <button type="button" role="tab" id="tab-live" data-face="live" aria-controls="face-live" aria-selected="true">Conversation</button>
           <button type="button" role="tab" id="tab-tts" data-face="tts" aria-controls="face-tts" aria-selected="false">Exact text</button>
         </div>
-        <details class="info">
-          <summary aria-label="About this lab">i</summary>
-          <div class="info-pop">
-            One job at a time. Conversation is Gemini Live. Exact text is
-            request/response TTS. Trace is the dock at the bottom-left.
-          </div>
-        </details>
       </header>
 
       <section class="face face-live" id="face-live" role="tabpanel" aria-labelledby="tab-live">
-        <div class="talk-stage">
-          <div class="session-core">
-            <button id="session-toggle" class="start-stop" type="button">Start</button>
-            <div class="sr-only">
-              <button id="start" class="primary" type="button">Listen</button>
-              <button id="stop" type="button" disabled>Stop</button>
-            </div>
-            <div id="status" class="status idle"><span></span>Idle</div>
-          </div>
+        <div class="talk-board">
+          <div class="session-band">
+            <aside class="audio-rail" aria-label="Audio">
+              <details class="info source-info">
+                <summary class="source-chip on">Mic</summary>
+                <div class="info-pop">Audio in is on while the session is running. Mute me stops sending your mic. Out is her playback and turns red when off.</div>
+              </details>
+              <button id="mute-me" class="io-mute" type="button" aria-pressed="false" title="Mute my microphone">Me</button>
+              <button id="mute" class="io-mute" data-trace-src="ui.mute" type="button" aria-pressed="true" title="Gemini audio out">Out</button>
+              <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
+              <button id="prompt-toggle" class="prompt-chip" type="button" aria-pressed="false" title="Steer Gemini’s next output">Prompt</button>
+            </aside>
 
-          <div class="io-row">
-            <details class="info source-info">
-              <summary class="source-chip on">Mic</summary>
-              <div class="info-pop">Audio in is on while listening. Start/Stop is the mic, not her playback.</div>
-            </details>
-            <button id="mute" class="io-mute" data-trace-src="ui.mute" type="button" aria-pressed="true" title="Gemini audio out">Out</button>
-            <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
-            <button id="prompt-toggle" type="button" aria-pressed="false">Prompt</button>
-            <details class="info">
-              <summary aria-label="About Conversation sources">i</summary>
-              <div class="info-pop">
-                Combinations: audio; audio + prompt; video + prompt; video +
-                audio + prompt. See sends camera or screen as JPEG snapshots
-                at 1 FPS. Pack, Preview, and Boxes are the Live video packing
-                controls. Prompt is the Live steer field. Out is her playback.
+            <div class="session-core">
+              <div class="power-row">
+                <button id="session-toggle" class="start-stop" type="button" title="Start" aria-label="Start session" aria-pressed="false"></button>
+                <div class="job-mode" role="radiogroup" aria-label="Session mode">
+                  <button type="button" id="job-talk" data-job="talk" aria-pressed="true" title="Audio in and audio out">Talk</button>
+                  <button type="button" id="job-see" data-job="see" aria-pressed="false" title="Audio and video in, audio out">See</button>
+                  <button type="button" id="job-transcribe" data-job="transcribe" aria-pressed="false" title="Audio in, text out, no speaker">Transcribe</button>
+                </div>
               </div>
-            </details>
-          </div>
+              <div class="sr-only">
+                <button id="start" class="primary" type="button">Listen</button>
+                <button id="stop" type="button" disabled>Stop</button>
+              </div>
+              <div id="status" class="status idle"><span></span>Idle</div>
+            </div>
 
-          <section class="see" aria-label="What she sees">
-            <label class="inline" for="video-source">
-              See
-              <select id="video-source" data-trace-src="ui.video">
-                <option value="none">Off</option>
-                <option value="camera">Camera</option>
-                <option value="screen">Screen</option>
-              </select>
-            </label>
-            <label class="inline" for="video-pack">
-              Pack
-              <select id="video-pack" data-trace-src="ui.video">
-                <option value="current">Frame</option>
-                <option value="motion" selected>Motion</option>
-                <option value="motion-strip">Strip</option>
-              </select>
-            </label>
-            <label class="toggle">
-              <input id="show-gemini-view" type="checkbox" />
-              Preview
-            </label>
-            <label class="toggle">
-              <input id="map-objects" type="checkbox" />
-              Boxes
-            </label>
-            <button id="pop-gemini-view" type="button">Pop out</button>
-            <span id="video-state" class="hint">See off</span>
-            <video id="video-preview" autoplay playsinline muted></video>
-          </section>
-
-          <section class="steer" id="steer" hidden aria-labelledby="live-lab-title">
-            <h2 id="live-lab-title" class="sr-only">Steer</h2>
-            <div class="steer-row">
-              <span id="live-state" class="hint">Ready</span>
-              <label class="inline" for="live-mode">
-                Mode
-                <select id="live-mode">
-                  <option value="conversation">Talk</option>
-                  <option value="narration">Narrate</option>
-                  <option value="transcribe">Transcribe</option>
+            <section class="see" aria-label="What she sees">
+              <label class="inline" for="video-source">
+                See
+                <select id="video-source" data-trace-src="ui.video">
+                  <option value="none">Off</option>
+                  <option value="camera">Camera</option>
+                  <option value="screen">Screen</option>
                 </select>
               </label>
-              <label class="inline" for="live-voice">
-                Voice
-                <select id="live-voice"></select>
+              <label class="inline" for="video-pack">
+                Pack
+                <select id="video-pack" data-trace-src="ui.video">
+                  <option value="current">Frame</option>
+                  <option value="motion" selected>Motion</option>
+                  <option value="motion-strip">Strip</option>
+                </select>
               </label>
-              <label class="inline feel" for="live-style">
-                Feel
-                <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" placeholder="calm, unhurried, one short answer then wait" />
+              <label class="toggle">
+                <input id="show-gemini-view" type="checkbox" />
+                Preview
               </label>
-            </div>
-            <div class="steer-row">
-              <textarea id="live-prompt" rows="2" placeholder="Steer, then Send. Example: Read the error on screen."></textarea>
-              <button id="live-send" type="button" disabled>Send</button>
-            </div>
-          </section>
+              <label class="toggle">
+                <input id="map-objects" type="checkbox" />
+                Boxes
+              </label>
+              <button id="pop-gemini-view" type="button">Pop out</button>
+              <span id="video-state" class="hint">See off</span>
+              <video id="video-preview" autoplay playsinline muted></video>
+            </section>
+
+            <section class="steer" id="steer" hidden aria-labelledby="live-lab-title">
+              <h2 id="live-lab-title" class="sr-only">Steer</h2>
+              <div class="steer-row">
+                <span id="live-state" class="hint">Ready</span>
+                <label class="sr-only" for="live-mode">
+                  Mode
+                  <select id="live-mode">
+                    <option value="conversation">Talk</option>
+                    <option value="narration">Narrate</option>
+                    <option value="transcribe">Transcribe</option>
+                  </select>
+                </label>
+                <label class="inline" for="live-voice">
+                  Voice
+                  <select id="live-voice"></select>
+                </label>
+                <label class="inline feel" for="live-style">
+                  Feel
+                  <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" placeholder="calm, unhurried, one short answer then wait" />
+                </label>
+              </div>
+              <div class="steer-row">
+                <textarea id="live-prompt" rows="2" placeholder="Steer, then Send. Example: Read the error on screen."></textarea>
+                <button id="live-send" type="button" disabled>Send</button>
+              </div>
+            </section>
+          </div>
 
           <section id="transcript" class="transcript" aria-live="polite">
             <div class="empty">Conversation lands here.</div>

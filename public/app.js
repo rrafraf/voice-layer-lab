@@ -51,6 +51,8 @@ const hearGemini = document.querySelector("#hear-gemini");
 const sessionToggle = document.querySelector("#session-toggle");
 const promptToggle = document.querySelector("#prompt-toggle");
 const steer = document.querySelector("#steer");
+const muteMeButton = document.querySelector("#mute-me");
+const jobButtons = [...document.querySelectorAll(".job-mode [data-job]")];
 
 let socket;
 let stream;
@@ -60,6 +62,8 @@ let outputContext;
 let playbackCursor = 0;
 let muted = false;
 let muteReason = "user";
+let inputMuted = false;
+let jobMode = "talk";
 let sessionArmed = false;
 const activeSources = new Set();
 const turns = [];
@@ -368,6 +372,44 @@ function setMuted(nextMuted, reason = "user") {
   traceLog("info", "ui.mute", muted ? "on" : "off", reason);
 }
 
+function setInputMuted(nextMuted, reason = "user") {
+  inputMuted = Boolean(nextMuted);
+  muteMeButton.classList.toggle("active", inputMuted);
+  muteMeButton.classList.toggle("off", inputMuted);
+  muteMeButton.setAttribute("aria-pressed", String(inputMuted));
+  traceLog("info", "ui.mic", inputMuted ? "muted" : "open", reason);
+}
+
+function applyJobMode(nextJob) {
+  const job = nextJob === "see" || nextJob === "transcribe" ? nextJob : "talk";
+  jobMode = job;
+  document.body.dataset.job = job;
+  for (const button of jobButtons) {
+    button.setAttribute("aria-pressed", String(button.dataset.job === job));
+  }
+
+  if (job === "transcribe") {
+    liveMode.value = "transcribe";
+    setMuted(true, "transcribe");
+    if (videoSource.value !== "none") videoSource.value = "none";
+  } else {
+    liveMode.value = "conversation";
+    if (muteReason === "transcribe") setMuted(false, "mode");
+    if (job === "see" && videoSource.value === "none") videoSource.value = "camera";
+    if (job === "talk" && videoSource.value !== "none") videoSource.value = "none";
+  }
+
+  liveState.textContent = `${job} · ${liveMode.value}`;
+  sendLiveSession();
+  traceLog("info", "ui.job", job, `mode=${liveMode.value} see=${videoSource.value}`);
+  const running = sessionArmed || Boolean(socket || stream);
+  if (running) {
+    void startVideo().catch((error) => setVideoState(error.message ?? String(error)));
+  } else if (videoSource.value === "none") {
+    stopVideo();
+  }
+}
+
 function formatUiError(error) {
   const raw = error?.message ?? String(error ?? "");
   try {
@@ -393,8 +435,10 @@ function setVideoState(label) {
 
 function syncSessionToggle() {
   const running = sessionArmed || Boolean(socket || stream);
-  sessionToggle.textContent = running ? "Stop" : "Start";
   sessionToggle.classList.toggle("running", running);
+  sessionToggle.title = running ? "Stop" : "Start";
+  sessionToggle.setAttribute("aria-label", running ? "Stop session" : "Start session");
+  sessionToggle.setAttribute("aria-pressed", String(running));
 }
 
 function setFace(face) {
@@ -781,6 +825,7 @@ async function start() {
       let audioBlocks = 0;
       processor.onaudioprocess = (event) => {
         if (socket.readyState !== WebSocket.OPEN) return;
+        if (inputMuted) return;
         const input = event.inputBuffer.getChannelData(0);
         audioBlocks += 1;
         if (audioBlocks === 1 || audioBlocks % 25 === 0) {
@@ -998,6 +1043,9 @@ sessionToggle.addEventListener("click", () => {
   if (sessionArmed || socket || stream) void stop();
   else void start();
 });
+for (const button of jobButtons) {
+  button.addEventListener("click", () => applyJobMode(button.dataset.job));
+}
 for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
   tab.addEventListener("click", () => setFace(tab.dataset.face));
 }
@@ -1065,6 +1113,9 @@ geminiViewDrag.addEventListener("mousedown", (event) => {
 muteButton.addEventListener("click", () => {
   setMuted(!muted, "button");
 });
+muteMeButton.addEventListener("click", () => {
+  setInputMuted(!inputMuted, "button");
+});
 hearGemini.addEventListener("change", () => {
   setMuted(!hearGemini.checked, "hear-checkbox");
 });
@@ -1076,11 +1127,7 @@ livePrompt.addEventListener("keydown", (event) => {
   }
 });
 liveMode.addEventListener("change", () => {
-  if (liveMode.value === "transcribe") setMuted(true, "transcribe");
-  else if (muteReason === "transcribe") setMuted(false, "mode");
-  liveState.textContent = socket?.readyState === WebSocket.OPEN
-    ? "Stop and start to apply a new mode"
-    : `${liveMode.value} · ${liveVoice.value}`;
+  applyJobMode(liveMode.value === "transcribe" ? "transcribe" : jobMode === "see" ? "see" : "talk");
 });
 downloadButton.addEventListener("click", downloadTranscript);
 copyPromptButton.addEventListener("click", () => void copyCursorPrompt());
@@ -1106,3 +1153,4 @@ void loadLiveCatalog().catch((error) => {
   liveState.textContent = error.message ?? String(error);
   logEvent("error", "Live catalog failed", error.message ?? String(error));
 });
+applyJobMode("talk");
