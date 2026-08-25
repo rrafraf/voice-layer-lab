@@ -369,6 +369,24 @@ function setMuted(nextMuted, reason = "user") {
   traceLog("info", "ui.mute", muted ? "on" : "off", reason);
 }
 
+function formatUiError(error) {
+  const raw = error?.message ?? String(error ?? "");
+  try {
+    const parsed = JSON.parse(raw);
+    const nested = parsed?.error?.message ?? parsed?.message ?? parsed?.error;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+  } catch {
+    /* keep the raw message */
+  }
+  const compact = raw.replace(/\s+/g, " ").trim();
+  return compact.length > 96 ? `${compact.slice(0, 93)}…` : compact;
+}
+
+function setTtsState(label, kind = "ok") {
+  ttsState.textContent = label;
+  ttsState.className = `test-state${kind === "error" ? " error" : ""}`;
+}
+
 function setVideoState(label) {
   videoState.textContent = label;
   videoState.hidden = label === "See off" || label === "Audio only" || / selected$/.test(label) || /JPEG/.test(label) || /1 FPS/.test(label);
@@ -848,7 +866,7 @@ async function stop(resetStatus = true) {
   processor = undefined;
   stream?.getTracks().forEach((track) => track.stop());
   stream = undefined;
-  stopVideo();
+  if (videoSource.value === "none") stopVideo();
   if (socket?.readyState === WebSocket.OPEN) socket.close();
   socket = undefined;
   await inputContext?.close();

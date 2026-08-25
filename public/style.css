@@ -124,7 +124,12 @@ h2 { margin: 0; font-size: 15px; }
 }
 .source-chip.on { border-color: rgba(110, 168, 255, .45); color: var(--live); }
 
-.face-tts[hidden], .face-live[hidden] { display: none; }
+.watch-extras[hidden],
+.steer[hidden],
+.face-tts[hidden],
+.face-live[hidden] {
+  display: none !important;
+}
 .face-live { flex: 1 1 auto; }
 
 .talk-stage {
