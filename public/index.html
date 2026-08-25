@@ -44,14 +44,17 @@
                 <option value="camera">Camera</option>
                 <option value="screen">Screen</option>
               </select>
-              <div id="video-state" class="test-state">Audio only</div>
+              <div id="video-state" class="test-state" hidden>Audio only</div>
             </div>
           </div>
 
           <video id="video-preview" autoplay playsinline muted></video>
 
           <section id="transcript" class="transcript" aria-live="polite">
-            <div class="empty">Start listening to see the conversation.</div>
+            <div class="empty">
+              <strong>No conversation yet</strong>
+              <span>Start listening to see Live turns here.</span>
+            </div>
           </section>
 
           <section class="cursor-prompt" aria-labelledby="cursor-prompt-title">

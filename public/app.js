@@ -322,8 +322,27 @@ function floatToPcm16(input) {
   return pcm.buffer;
 }
 
+function formatUiError(error) {
+  const raw = error?.message ?? String(error ?? "");
+  try {
+    const parsed = JSON.parse(raw);
+    const nested = parsed?.error?.message ?? parsed?.message ?? parsed?.error;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+  } catch {
+    /* keep the raw message */
+  }
+  const compact = raw.replace(/\s+/g, " ").trim();
+  return compact.length > 96 ? `${compact.slice(0, 93)}…` : compact;
+}
+
+function setTtsState(label, kind = "ok") {
+  ttsState.textContent = label;
+  ttsState.className = `test-state${kind === "error" ? " error" : ""}`;
+}
+
 function setVideoState(label) {
   videoState.textContent = label;
+  videoState.hidden = label === "Audio only" || / selected$/.test(label);
 }
 
 function stopVideo() {
@@ -525,7 +544,12 @@ function clearTranscript() {
   transcript.replaceChildren();
   const empty = document.createElement("div");
   empty.className = "empty";
-  empty.textContent = "Start listening to see the conversation.";
+  empty.replaceChildren();
+  const title = document.createElement("strong");
+  title.textContent = "No conversation yet";
+  const hint = document.createElement("span");
+  hint.textContent = "Start listening to see Live turns here.";
+  empty.append(title, hint);
   transcript.append(empty);
   downloadButton.disabled = true;
   updateCursorPrompt();
@@ -553,12 +577,12 @@ async function loadTtsCatalog() {
   const catalog = await response.json();
   fillSelect(ttsModel, catalog.models, catalog.defaultModel);
   fillSelect(ttsVoice, catalog.voices, catalog.defaultVoice);
-  ttsState.textContent = "Ready";
+  setTtsState("Ready");
 }
 
 async function speakWithTts() {
   ttsSpeakButton.disabled = true;
-  ttsState.textContent = "Generating…";
+  setTtsState("Generating…");
   logEvent("info", "TTS request", ttsVoice.value);
   try {
     const response = await fetch("/api/narrate", {
@@ -582,12 +606,12 @@ async function speakWithTts() {
     ttsDownload.href = ttsAudioUrl;
     ttsDownload.download = `tts-${result.voice}-${new Date().toISOString().replaceAll(":", "-")}.wav`;
     ttsDownload.hidden = false;
-    ttsState.textContent = `${result.voice} · ${result.characters} chars`;
+    setTtsState(`${result.voice} · ${result.characters} chars`);
     logEvent("ok", "TTS audio ready", `${result.model}, ${result.voice}`);
     await ttsAudio.play().catch(() => undefined);
   } catch (error) {
     const message = error.message ?? String(error);
-    ttsState.textContent = message;
+    setTtsState(formatUiError(error), "error");
     logEvent("error", "TTS failed", message);
   } finally {
     ttsSpeakButton.disabled = false;
@@ -635,6 +659,6 @@ window.addEventListener("beforeunload", () => {
   void stop(false);
 });
 void loadTtsCatalog().catch((error) => {
-  ttsState.textContent = error.message ?? String(error);
+  setTtsState(formatUiError(error), "error");
   logEvent("error", "TTS catalog failed", error.message ?? String(error));
 });
