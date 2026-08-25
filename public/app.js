@@ -1,11 +1,12 @@
+import { composeScreenFrame, isBlankFrame, lumaStats, videoPackLabel } from "./video-pack.js";
+import { logEvent, traceLog } from "./trace.js";
+
 const startButton = document.querySelector("#start");
 const stopButton = document.querySelector("#stop");
 const muteButton = document.querySelector("#mute");
 const downloadButton = document.querySelector("#download");
 const transcript = document.querySelector("#transcript");
 const status = document.querySelector("#status");
-const eventLog = document.querySelector("#event-log");
-const copyLogButton = document.querySelector("#copy-log");
 const copyPromptButton = document.querySelector("#copy-prompt");
 const clearPromptButton = document.querySelector("#clear-prompt");
 const promptPreview = document.querySelector("#prompt-preview");
@@ -27,6 +28,26 @@ const micSettings = document.querySelector("#mic-settings");
 const videoSource = document.querySelector("#video-source");
 const videoPreview = document.querySelector("#video-preview");
 const videoState = document.querySelector("#video-state");
+const videoPack = document.querySelector("#video-pack");
+const showGeminiView = document.querySelector("#show-gemini-view");
+const mapObjects = document.querySelector("#map-objects");
+const popGeminiView = document.querySelector("#pop-gemini-view");
+const geminiViewDock = document.querySelector("#gemini-view-dock");
+const geminiViewCanvas = document.querySelector("#gemini-view-canvas");
+const geminiViewEmpty = document.querySelector("#gemini-view-empty");
+const geminiViewError = document.querySelector("#gemini-view-error");
+const geminiViewStage = document.querySelector("#gemini-view-stage");
+const geminiViewTable = document.querySelector("#gemini-view-table");
+const geminiViewScene = document.querySelector("#gemini-view-scene");
+const geminiViewClose = document.querySelector("#gemini-view-close");
+const geminiViewDrag = document.querySelector("#gemini-view-drag");
+const liveMode = document.querySelector("#live-mode");
+const liveVoice = document.querySelector("#live-voice");
+const liveStyle = document.querySelector("#live-style");
+const livePrompt = document.querySelector("#live-prompt");
+const liveSendButton = document.querySelector("#live-send");
+const liveState = document.querySelector("#live-state");
+const hearGemini = document.querySelector("#hear-gemini");
 
 let socket;
 let stream;
@@ -35,18 +56,31 @@ let processor;
 let outputContext;
 let playbackCursor = 0;
 let muted = false;
+let muteReason = "user";
 const activeSources = new Set();
 const turns = [];
-const diagnosticEvents = [];
 let micTest;
 const recordingUrls = { raw: undefined, processed: undefined };
 let ttsAudioUrl;
 let activeTranscriptTurn;
 let videoStream;
 let videoTimer;
+let videoSampleTimer;
 const videoCanvas = document.createElement("canvas");
+const frameHistory = [];
+let geminiViewWindow;
+let latestVisionMap;
+let visionMapInFlight = false;
+let lastVisionMapAt = 0;
+const VISION_MAP_MS = 2500;
 const VIDEO_FRAME_MS = 1000;
+const VIDEO_SAMPLE_MS = 330;
+const VIDEO_HISTORY = 3;
 const VIDEO_MAX_EDGE = 1280;
+const BLANK_STEER = "The latest video frame is blank or unreadable. Do not guess what is on the user's screen. Wait for them to speak.";
+let packedFrameCount = 0;
+let skipSizeLogs = 0;
+let blankSteerSent = false;
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -191,25 +225,6 @@ async function recordMicTest(mode) {
   }
 }
 
-function logEvent(level, message, details) {
-  const event = { at: new Date().toISOString(), level, message, details };
-  diagnosticEvents.push(event);
-  const row = document.createElement("li");
-  row.className = level;
-  const time = document.createElement("span");
-  time.className = "time";
-  time.textContent = new Date(event.at).toLocaleTimeString();
-  const severity = document.createElement("span");
-  severity.className = "level";
-  severity.textContent = level;
-  const body = document.createElement("span");
-  body.className = "message";
-  body.textContent = details ? `${message} — ${details}` : message;
-  row.append(time, severity, body);
-  eventLog.append(row);
-  eventLog.scrollTop = eventLog.scrollHeight;
-}
-
 function setStatus(label, kind = "idle") {
   status.className = `status ${kind}`;
   status.innerHTML = `<span></span>${label}`;
@@ -246,12 +261,16 @@ function updateCursorPrompt() {
   clearPromptButton.disabled = turns.length === 0;
 }
 
+function scrollTranscriptToEnd() {
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
 function appendTurn(speaker, text) {
   transcript.querySelector(".empty")?.remove();
   if (activeTranscriptTurn?.speaker === speaker) {
     activeTranscriptTurn.body.textContent += text;
     turns[activeTranscriptTurn.turnIndex].text += text;
-    activeTranscriptTurn.row.scrollIntoView({ behavior: "smooth", block: "end" });
+    scrollTranscriptToEnd();
     updateCursorPrompt();
     return;
   }
@@ -259,7 +278,7 @@ function appendTurn(speaker, text) {
   finishTranscriptTurn();
   turns.push({ speaker, text, at: new Date().toISOString() });
   const row = document.createElement("div");
-  row.className = `turn ${speaker === "Gemini" ? "model" : "user"}`;
+  row.className = `turn ${speaker === "Gemini" ? "model" : speaker === "PROMPT" ? "prompt" : "user"}`;
   const label = document.createElement("div");
   label.className = "speaker";
   label.textContent = speaker;
@@ -268,7 +287,7 @@ function appendTurn(speaker, text) {
   row.append(label, body);
   transcript.append(row);
   activeTranscriptTurn = { speaker, body, row, turnIndex: turns.length - 1 };
-  row.scrollIntoView({ behavior: "smooth", block: "end" });
+  scrollTranscriptToEnd();
   downloadButton.disabled = false;
   updateCursorPrompt();
 }
@@ -322,8 +341,57 @@ function floatToPcm16(input) {
   return pcm.buffer;
 }
 
+function setMuted(nextMuted, reason = "user") {
+  const next = Boolean(nextMuted);
+  if (muted === next) {
+    muteReason = reason;
+    return;
+  }
+  muted = next;
+  muteReason = reason;
+  if (muted) {
+    stopPlayback();
+  } else if (outputContext) {
+    playbackCursor = outputContext.currentTime;
+    void outputContext.resume();
+  }
+  muteButton.classList.toggle("active", muted);
+  muteButton.textContent = muted ? "Hear her off" : "Hear her";
+  muteButton.setAttribute("aria-pressed", muted ? "false" : "true");
+  hearGemini.checked = !muted;
+  traceLog("info", "ui.mute", muted ? "on" : "off", reason);
+}
+
 function setVideoState(label) {
   videoState.textContent = label;
+}
+
+function sendLiveSession() {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({
+    type: "session",
+    mode: liveMode.value,
+    style: liveStyle.value,
+    voice: liveVoice.value,
+    videoPack: videoPack.value,
+  }));
+    liveState.textContent = `${liveMode.value} · ${liveVoice.value}`;
+    logEvent("info", "Live session config sent", `${liveMode.value}, ${liveVoice.value}, ${videoPackLabel(videoPack.value)}`);
+    traceLog("debug", "ui.live", "session.send", `${liveMode.value}/${liveVoice.value} pack=${videoPack.value}`);
+}
+
+function sendLivePrompt() {
+  const text = livePrompt.value.trim();
+  if (!text) return;
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    liveState.textContent = "Listen first";
+    logEvent("warn", "Live prompt ignored; session is not open");
+    return;
+  }
+  socket.send(JSON.stringify({ type: "text", text }));
+  livePrompt.value = "";
+  liveState.textContent = "Prompt sent";
+  logEvent("ok", "Live text prompt sent", `${text.length} characters`);
 }
 
 function stopVideo() {
@@ -331,51 +399,285 @@ function stopVideo() {
     clearInterval(videoTimer);
     videoTimer = undefined;
   }
+  if (videoSampleTimer) {
+    clearInterval(videoSampleTimer);
+    videoSampleTimer = undefined;
+  }
+  frameHistory.length = 0;
   videoStream?.getTracks().forEach((track) => track.stop());
   videoStream = undefined;
   videoPreview.srcObject = null;
   videoPreview.classList.remove("active");
-  setVideoState(videoSource.value === "none" ? "Audio only" : "Video stopped");
+  packedFrameCount = 0;
+  skipSizeLogs = 0;
+  blankSteerSent = false;
+  setGeminiError("");
+  setVideoState(videoSource.value === "none" ? "See off" : "See stopped");
+  if (!geminiViewCanvas.classList.contains("has-frame")) setGeminiEmpty();
 }
 
-function sendVideoFrame() {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  if (!videoPreview.videoWidth) return;
+function geminiEmptyText() {
+  if (videoSource.value === "none") return "See is off. Pick Camera or Screen, then Listen.";
+  if (!videoStream) return `${videoSource.value} selected. Listen to pack frames.`;
+  if (!videoPreview.videoWidth) return "Waiting for the first video frame…";
+  return "Packing frames…";
+}
+
+function geminiSceneLabel(map = latestVisionMap) {
+  return map?.scene || videoPackLabel(videoPack.value);
+}
+
+function setGeminiError(text) {
+  if (!text) {
+    geminiViewError.hidden = true;
+    geminiViewError.textContent = "";
+    return;
+  }
+  geminiViewError.hidden = false;
+  geminiViewError.textContent = text;
+}
+
+function setGeminiEmpty(text = geminiEmptyText()) {
+  geminiViewCanvas.classList.remove("has-frame");
+  geminiViewStage.classList.remove("has-frame");
+  geminiViewEmpty.textContent = text;
+}
+
+function waitForVideo(video, timeoutMs = 5000) {
+  if (video.videoWidth > 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Video has no frames after ${timeoutMs}ms (readyState=${video.readyState})`));
+    }, timeoutMs);
+    const onReady = () => {
+      if (video.videoWidth > 0) {
+        cleanup();
+        resolve();
+      }
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      video.removeEventListener("loadeddata", onReady);
+      video.removeEventListener("playing", onReady);
+    };
+    video.addEventListener("loadeddata", onReady);
+    video.addEventListener("playing", onReady);
+    void video.play().catch(() => undefined);
+  });
+}
+
+function capturePreviewFrame() {
+  if (!videoPreview.videoWidth) {
+    skipSizeLogs += 1;
+    if (skipSizeLogs === 1 || skipSizeLogs % 20 === 0) {
+      traceLog("trace", "ui.video", "skip.no-size", `n=${skipSizeLogs} readyState=${videoPreview.readyState}`);
+    }
+    return;
+  }
   const scale = Math.min(1, VIDEO_MAX_EDGE / Math.max(videoPreview.videoWidth, videoPreview.videoHeight));
   videoCanvas.width = Math.max(1, Math.round(videoPreview.videoWidth * scale));
   videoCanvas.height = Math.max(1, Math.round(videoPreview.videoHeight * scale));
-  const context = videoCanvas.getContext("2d");
+  const context = videoCanvas.getContext("2d", { willReadFrequently: true });
   if (!context) return;
   context.drawImage(videoPreview, 0, 0, videoCanvas.width, videoCanvas.height);
-  const dataUrl = videoCanvas.toDataURL("image/jpeg", 0.7);
-  const data = dataUrl.split(",")[1];
-  if (!data) return;
+  const frame = context.getImageData(0, 0, videoCanvas.width, videoCanvas.height);
+  frameHistory.push(frame);
+  if (frameHistory.length > VIDEO_HISTORY) frameHistory.shift();
+}
+
+function formatVisionTable(map) {
+  if (!map) return "Enable Map objects to overlay a detection table on this packed frame. Park this panel off a shared screen.";
+  const rows = (map.objects ?? []).map((object) => `| ${object.kind} | ${object.label} | ${Number(object.x).toFixed(2)} | ${Number(object.y).toFixed(2)} |`);
+  return [`${map.scene || "Scene"}`, "", "| kind | label | x | y |", "| --- | --- | --- | --- |", ...rows].join("\n");
+}
+
+function drawVisionOverlay(context, width, height, map) {
+  if (!map?.objects) return;
+  for (const object of map.objects) {
+    const x = object.x * width;
+    const y = object.y * height;
+    const w = object.w * width;
+    const h = object.h * height;
+    context.strokeStyle = "#7db6ff";
+    context.lineWidth = 2;
+    context.strokeRect(x, y, w, h);
+    context.fillStyle = "rgba(7, 16, 27, 0.75)";
+    context.fillRect(x, Math.max(0, y - 16), Math.min(width - x, 180), 16);
+    context.fillStyle = "#eef2f6";
+    context.font = "11px ui-sans-serif, sans-serif";
+    context.fillText(`${object.kind}: ${object.label}`, x + 4, Math.max(12, y - 4));
+  }
+}
+
+function publishGeminiView(canvas, map = latestVisionMap) {
+  const context = geminiViewCanvas.getContext("2d");
+  if (!context || !canvas?.width) {
+    setGeminiEmpty();
+    return;
+  }
+  geminiViewCanvas.width = canvas.width;
+  geminiViewCanvas.height = canvas.height;
+  context.drawImage(canvas, 0, 0);
+  drawVisionOverlay(context, canvas.width, canvas.height, map);
+  geminiViewCanvas.classList.add("has-frame");
+  geminiViewStage.classList.add("has-frame");
+  geminiViewScene.textContent = geminiSceneLabel(map);
+  geminiViewTable.textContent = formatVisionTable(map);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+  if (geminiViewWindow && !geminiViewWindow.closed) {
+    geminiViewWindow.postMessage({ type: "gemini-view", dataUrl, map, table: formatVisionTable(map) }, location.origin);
+  }
+}
+
+function setGeminiViewOpen(open) {
+  geminiViewDock.hidden = !open;
+  showGeminiView.checked = open;
+  if (open && !geminiViewCanvas.classList.contains("has-frame")) {
+    setGeminiEmpty();
+    if (videoStream) packAndPreview();
+  }
+}
+
+function showPackedPreview(canvas) {
+  publishGeminiView(canvas);
+  if (mapObjects.checked) void requestVisionMap(canvas);
+}
+
+async function requestVisionMap(canvas) {
+  if (visionMapInFlight) return;
+  if (Date.now() - lastVisionMapAt < VISION_MAP_MS) return;
+  visionMapInFlight = true;
+  lastVisionMapAt = Date.now();
+  try {
+    const image = canvas.toDataURL("image/jpeg", 0.55).split(",")[1];
+    const response = await fetch("/api/vision-map", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image, mimeType: "image/jpeg" }),
+    });
+    const map = await response.json();
+    if (!response.ok) throw new Error(map.error || `HTTP ${response.status}`);
+    latestVisionMap = map;
+    publishGeminiView(canvas, map);
+    logEvent("ok", "Vision map", map.scene || `${map.objects?.length ?? 0} objects`);
+  } catch (error) {
+    logEvent("warn", "Vision map failed", error.message ?? String(error));
+    setGeminiError(`Vision map failed: ${error.message ?? String(error)}`);
+  } finally {
+    visionMapInFlight = false;
+  }
+}
+
+function packAndPreview() {
+  capturePreviewFrame();
+  if (!frameHistory.length) {
+    if (!geminiViewCanvas.classList.contains("has-frame")) setGeminiEmpty();
+    return undefined;
+  }
+  const packed = composeScreenFrame(frameHistory, videoPack.value, VIDEO_MAX_EDGE) ?? videoCanvas;
+  packedFrameCount += 1;
+  const latest = frameHistory[frameHistory.length - 1];
+  const stats = lumaStats(latest.data);
+  const blank = isBlankFrame(latest);
+  if (packedFrameCount === 1 || packedFrameCount % 10 === 0 || blank) {
+    traceLog(
+      blank ? "warn" : "debug",
+      "ui.video",
+      blank ? "pack.blank" : "pack",
+      `n=${packedFrameCount} ${packed.width}x${packed.height} luma=${stats.mean.toFixed(1)} var=${stats.variance.toFixed(1)} hist=${frameHistory.length} src=${videoPreview.videoWidth}x${videoPreview.videoHeight}`,
+    );
+  }
+  showPackedPreview(packed);
+  return { packed, blank, stats };
+}
+
+function sendVideoFrame() {
+  const result = packAndPreview();
+  if (!result) return;
+  const { packed, blank, stats } = result;
+  if (blank) {
+    setGeminiError(`Packed frame looks blank (luma ${stats.mean.toFixed(0)}, var ${stats.variance.toFixed(0)}). Not sending to Gemini. The preview image is the whole field of view.`);
+    if (socket?.readyState === WebSocket.OPEN && !blankSteerSent) {
+      blankSteerSent = true;
+      socket.send(JSON.stringify({ type: "text", text: BLANK_STEER }));
+      logEvent("warn", "Blank frame — told Gemini not to guess");
+    }
+    return;
+  }
+  setGeminiError("");
+  blankSteerSent = false;
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  const data = packed.toDataURL("image/jpeg", 0.72).split(",")[1];
+  if (!data) {
+    traceLog("warn", "ui.video", "jpeg.empty", `${packed.width}x${packed.height}`);
+    return;
+  }
   socket.send(JSON.stringify({ type: "video", mimeType: "image/jpeg", data }));
+}
+
+function startVideoSampling() {
+  if (videoSampleTimer) clearInterval(videoSampleTimer);
+  if (videoTimer) clearInterval(videoTimer);
+  const pack = videoPack.value;
+  if (pack !== "current") videoSampleTimer = setInterval(capturePreviewFrame, VIDEO_SAMPLE_MS);
+  videoTimer = setInterval(sendVideoFrame, VIDEO_FRAME_MS);
 }
 
 async function startVideo() {
   stopVideo();
   const kind = videoSource.value;
   if (kind === "none") {
-    setVideoState("Audio only");
+    setVideoState("See off");
     return;
   }
 
   logEvent("info", "Requesting video capture", kind);
-  videoStream = kind === "screen"
-    ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
-    : await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+  traceLog("info", "ui.video", "capture.request", kind);
+  try {
+    videoStream = kind === "screen"
+      ? await startScreenCapture()
+      : await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+  } catch (error) {
+    const message = `${error.name || "Error"}: ${error.message ?? String(error)}`;
+    traceLog("error", "ui.video", "capture.fail", message);
+    throw error;
+  }
   const track = videoStream.getVideoTracks()[0];
   track?.addEventListener("ended", () => {
-    logEvent("warn", "Video track ended");
+    traceLog("warn", "ui.video", "track.ended", track?.label || kind);
     videoSource.value = "none";
     stopVideo();
   });
   videoPreview.srcObject = videoStream;
   videoPreview.classList.add("active");
-  setVideoState(`${kind} · JPEG 1 FPS`);
-  logEvent("ok", "Video capture started", track?.label || kind);
-  videoTimer = setInterval(sendVideoFrame, VIDEO_FRAME_MS);
+  await waitForVideo(videoPreview);
+  setVideoState(`${kind} · 1 FPS send · ${videoPackLabel(videoPack.value)}`);
+  traceLog("info", "ui.video", "ready", `${kind} ${videoPreview.videoWidth}x${videoPreview.videoHeight} ${track?.label || ""}`);
+  if (showGeminiView.checked || mapObjects.checked) setGeminiViewOpen(true);
+  startVideoSampling();
+  packAndPreview();
+}
+
+async function startScreenCapture() {
+  const options = { video: true, audio: false };
+  try {
+    if (typeof CaptureController === "function") {
+      const controller = new CaptureController();
+      controller.setFocusBehavior?.("no-focus-change");
+      options.controller = controller;
+    }
+  } catch {
+    delete options.controller;
+  }
+  try {
+    return await navigator.mediaDevices.getDisplayMedia(options);
+  } catch (error) {
+    if (options.controller && error?.name !== "NotAllowedError" && error?.name !== "AbortError") {
+      return await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    }
+    throw error;
+  }
 }
 
 async function start() {
@@ -383,6 +685,7 @@ async function start() {
   startButton.disabled = true;
   setStatus("Connecting…");
   logEvent("info", "Start requested");
+  traceLog("info", "ui.start", "click");
 
   try {
     outputContext = new AudioContext({ sampleRate: 24000 });
@@ -413,6 +716,7 @@ async function start() {
     processor.connect(silent);
     silent.connect(inputContext.destination);
     logEvent("ok", "Microphone audio pipeline ready", `${inputContext.sampleRate} Hz to 16000 Hz`);
+    traceLog("debug", "ui.mic", "pipeline", `src=${inputContext.sampleRate} dst=16000`);
 
     try {
       await startVideo();
@@ -425,20 +729,42 @@ async function start() {
     socket = new WebSocket(`ws://${location.host}/voice`);
     socket.binaryType = "arraybuffer";
     logEvent("info", "Opening local voice connection");
+    traceLog("info", "ui.ws", "connecting", `ws://${location.host}/voice`);
+    let audioOutCount = 0;
     socket.onopen = () => {
       logEvent("ok", "Local voice connection open");
+      traceLog("info", "ui.ws", "open");
+      sendLiveSession();
+      liveSendButton.disabled = false;
+      let audioBlocks = 0;
       processor.onaudioprocess = (event) => {
         if (socket.readyState !== WebSocket.OPEN) return;
         const input = event.inputBuffer.getChannelData(0);
+        audioBlocks += 1;
+        if (audioBlocks === 1 || audioBlocks % 25 === 0) {
+          let peak = 0;
+          let sum = 0;
+          for (const sample of input) {
+            const abs = Math.abs(sample);
+            peak = Math.max(peak, abs);
+            sum += sample * sample;
+          }
+          traceLog("trace", "ui.mic", "pcm", `n=${audioBlocks} frames=${input.length} rms=${Math.sqrt(sum / input.length).toFixed(4)} peak=${peak.toFixed(4)}`);
+        }
         socket.send(floatToPcm16(downsampleTo16k(input, inputContext.sampleRate)));
       };
     };
     socket.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
+        audioOutCount += 1;
+        if (audioOutCount === 1 || audioOutCount % 20 === 0) {
+          traceLog("trace", "ui.ws", "audio.out", `n=${audioOutCount} bytes=${event.data.byteLength}`);
+        }
         playPcm16(event.data);
         return;
       }
       const message = JSON.parse(event.data);
+      traceLog("debug", "ui.ws", `msg.${message.type ?? "unknown"}`, message.message ?? message.action ?? "");
       if (message.type === "connected") {
         setStatus("Listening", "live");
         logEvent("ok", "Gemini Live connected; listening started");
@@ -452,6 +778,8 @@ async function start() {
         if (message.action === "stop") void stop();
       } else if (message.type === "input_transcript") {
         appendTurn("YOU", message.text);
+      } else if (message.type === "input_prompt") {
+        appendTurn("PROMPT", message.text);
       } else if (message.type === "output_transcript") {
         appendTurn("Gemini", message.text);
       } else if (message.type === "turn_complete") {
@@ -464,10 +792,14 @@ async function start() {
         logEvent("error", "Server reported an error", message.message);
       }
     };
-    socket.onerror = () => logEvent("error", "Local voice connection failed");
+    socket.onerror = () => {
+      logEvent("error", "Local voice connection failed");
+      traceLog("error", "ui.ws", "error");
+    };
     socket.onclose = (event) => {
       const detail = `code ${event.code}${event.reason ? `, ${event.reason}` : ""}`;
       logEvent(event.wasClean ? "info" : "error", "Local voice connection closed", detail);
+      traceLog(event.wasClean ? "info" : "error", "ui.ws", "close", detail);
       if (status.textContent.includes("Connecting")) setStatus("Connection failed — see diagnostics", "error");
       void stop(false);
     };
@@ -475,6 +807,7 @@ async function start() {
     const message = error.message ?? String(error);
     setStatus(message, "error");
     logEvent("error", "Startup failed", message);
+    traceLog("error", "ui.start", "fail", message);
     await stop(false);
   }
 }
@@ -497,6 +830,7 @@ async function stop(resetStatus = true) {
   finishTranscriptTurn();
   startButton.disabled = false;
   stopButton.disabled = true;
+  liveSendButton.disabled = true;
   if (resetStatus) setStatus("Idle");
 }
 
@@ -556,6 +890,13 @@ async function loadTtsCatalog() {
   ttsState.textContent = "Ready";
 }
 
+async function loadLiveCatalog() {
+  const response = await fetch("/api/live");
+  const catalog = await response.json();
+  fillSelect(liveVoice, catalog.voices, catalog.defaultVoice);
+  liveState.textContent = `${liveMode.value} · ${liveVoice.value}`;
+}
+
 async function speakWithTts() {
   ttsSpeakButton.disabled = true;
   ttsState.textContent = "Generating…";
@@ -597,21 +938,80 @@ async function speakWithTts() {
 startButton.addEventListener("click", start);
 stopButton.addEventListener("click", () => stop());
 videoSource.addEventListener("change", () => {
+  void startVideo().catch((error) => {
+    const message = error.message ?? String(error);
+    logEvent("error", "Video source change failed", message);
+    setVideoState(message);
+    setGeminiEmpty(message);
+  });
+});
+videoPack.addEventListener("change", () => {
+  if (videoStream) {
+    startVideoSampling();
+    setVideoState(`${videoSource.value} · 1 FPS send · ${videoPackLabel(videoPack.value)}`);
+    logEvent("info", "Video pack changed", videoPackLabel(videoPack.value));
+  }
   if (socket?.readyState === WebSocket.OPEN) {
-    void startVideo().catch((error) => {
-      const message = error.message ?? String(error);
-      logEvent("error", "Video source change failed", message);
-      setVideoState(message);
-    });
-  } else {
-    setVideoState(videoSource.value === "none" ? "Audio only" : `${videoSource.value} selected`);
+    const note = videoPack.value === "current"
+      ? "Video pack is now a single current frame. Read the screenshot directly."
+      : "Video pack now tints changed pixels magenta on the current screenshot. Read the untinted UI; use magenta as attention for motion, cursor, and dialogs.";
+    socket.send(JSON.stringify({ type: "text", text: note }));
   }
 });
+showGeminiView.addEventListener("change", () => setGeminiViewOpen(showGeminiView.checked));
+geminiViewClose.addEventListener("click", () => setGeminiViewOpen(false));
+popGeminiView.addEventListener("click", () => {
+  geminiViewWindow = window.open("/gemini-view.html", "gemini-view", "width=520,height=460,resizable=yes");
+  setGeminiViewOpen(true);
+  logEvent("info", "Gemini view popped out");
+});
+mapObjects.addEventListener("change", () => {
+  if (!mapObjects.checked) {
+    latestVisionMap = undefined;
+    geminiViewTable.textContent = formatVisionTable();
+    geminiViewScene.textContent = "";
+  } else {
+    setGeminiViewOpen(true);
+    logEvent("info", "Object mapping enabled");
+  }
+});
+geminiViewDrag.addEventListener("mousedown", (event) => {
+  if (event.target.closest("button")) return;
+  const rect = geminiViewDock.getBoundingClientRect();
+  const offsetX = event.clientX - rect.left;
+  const offsetY = event.clientY - rect.top;
+  const move = (moveEvent) => {
+    geminiViewDock.style.left = `${Math.max(0, moveEvent.clientX - offsetX)}px`;
+    geminiViewDock.style.top = `${Math.max(0, moveEvent.clientY - offsetY)}px`;
+    geminiViewDock.style.right = "auto";
+    geminiViewDock.style.bottom = "auto";
+  };
+  const up = () => {
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", up);
+  };
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+});
 muteButton.addEventListener("click", () => {
-  muted = !muted;
-  if (muted) stopPlayback();
-  muteButton.classList.toggle("active", muted);
-  muteButton.textContent = muted ? "Unmute Gemini" : "Mute Gemini";
+  setMuted(!muted, "button");
+});
+hearGemini.addEventListener("change", () => {
+  setMuted(!hearGemini.checked, "hear-checkbox");
+});
+liveSendButton.addEventListener("click", sendLivePrompt);
+livePrompt.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    sendLivePrompt();
+  }
+});
+liveMode.addEventListener("change", () => {
+  if (liveMode.value === "transcribe") setMuted(true, "transcribe");
+  else if (muteReason === "transcribe") setMuted(false, "mode");
+  liveState.textContent = socket?.readyState === WebSocket.OPEN
+    ? "Stop and start to apply a new mode"
+    : `${liveMode.value} · ${liveVoice.value}`;
 });
 downloadButton.addEventListener("click", downloadTranscript);
 copyPromptButton.addEventListener("click", () => void copyCursorPrompt());
@@ -622,19 +1022,15 @@ recordProcessedButton.addEventListener("click", () => recordMicTest("processed")
 stopTestButton.addEventListener("click", () => {
   if (micTest) micTest.stopRequested = true;
 });
-copyLogButton.addEventListener("click", async () => {
-  const text = diagnosticEvents.map((event) => `[${event.at}] ${event.level.toUpperCase()} ${event.message}${event.details ? ` — ${event.details}` : ""}`).join("\n");
-  await navigator.clipboard.writeText(text);
-  copyLogButton.textContent = "Copied";
-  setTimeout(() => { copyLogButton.textContent = "Copy log"; }, 1200);
-});
 window.addEventListener("beforeunload", () => {
+  geminiViewWindow?.close();
   micTest?.stream?.getTracks().forEach((track) => track.stop());
   for (const url of Object.values(recordingUrls)) if (url) URL.revokeObjectURL(url);
   if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
   void stop(false);
 });
-void loadTtsCatalog().catch((error) => {
+void Promise.all([loadTtsCatalog(), loadLiveCatalog()]).catch((error) => {
   ttsState.textContent = error.message ?? String(error);
-  logEvent("error", "TTS catalog failed", error.message ?? String(error));
+  liveState.textContent = error.message ?? String(error);
+  logEvent("error", "API catalog failed", error.message ?? String(error));
 });

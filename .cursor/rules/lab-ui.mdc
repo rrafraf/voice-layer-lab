@@ -1,0 +1,26 @@
+---
+description: Keep Voice Layer Lab UI compact; screenshot at laptop size before shipping UI changes.
+alwaysApply: true
+---
+
+# Lab UI
+
+This is a control surface, not a landing page. If a change is visual, open the page at **1366×768**, screenshot it, and read the screenshot before you ship.
+
+- First screen: session state, Listen/Stop, her playback, See, transcript. Extra labs stay collapsed.
+- Status sits **next to Listen**, never alone in a far corner.
+- Labels must parse as one idea. `See: Off|Camera|Screen` is fine. `Video source: Audio only` is not.
+- Do not repeat the same noun on two adjacent controls (`What Gemini sees` + `Show what Gemini sees`).
+- **Hear her** = her playback. **Listen/Stop** = your mic. Never one "Mute" that could mean either.
+- Copy is protocol-short and readable. No hero titles. No paragraphs above the first button.
+- Mouse path is left-to-right on one row: Idle → Listen → Stop → Hear her.
+
+```html
+<!-- BAD -->
+<select><option>Audio only</option></select>
+<label>Show what Gemini sees</label>
+
+<!-- GOOD -->
+<label>See <select><option>Off</option><option>Camera</option><option>Screen</option></select></label>
+<label><input type="checkbox" /> Preview</label>
+```

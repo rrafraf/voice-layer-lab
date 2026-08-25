@@ -12,8 +12,8 @@
     "extension:build": "npm --prefix extension run build",
     "gate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-gate.ps1",
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/tests/app.test.js",
-    "check": "npm run build && node --test dist/tests/app.test.js && npm run extension:build"
+    "test": "npm run build && node --test dist/tests/app.test.js dist/tests/trace.test.js",
+    "check": "npm run build && node --test dist/tests/app.test.js dist/tests/trace.test.js && npm run extension:build"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

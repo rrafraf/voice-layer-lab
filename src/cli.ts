@@ -10,6 +10,7 @@ async function main(): Promise<void> {
     apiKey: config.apiKey,
     model: config.model,
     language: config.language,
+    mode: config.mode === "transcribe" ? "transcribe" : "conversation",
   });
   const lab = new VoiceLab(audio, provider, (event) => {
     const line = formatEvent(event);

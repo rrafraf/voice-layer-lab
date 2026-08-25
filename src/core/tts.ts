@@ -118,7 +118,7 @@ export function describeTtsApi() {
       kind: "live" as const,
       transport: "bidirectional-native-audio" as const,
       description:
-        "Gemini Live is the low-latency interactive path: continuous audio, optional JPEG video, barge-in, and turn-taking.",
+        "Gemini Live is the low-latency interactive path: microphone audio, optional JPEG video, mid-session text prompts, barge-in, and spoken audio out with transcripts.",
     },
     models: [...ttsModels],
     voices: ttsVoices.map((voice) => ({ ...voice })),

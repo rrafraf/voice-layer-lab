@@ -142,8 +142,31 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
         <option value="camera">Camera</option>
         <option value="screen">Screen</option>
       </select>
-      <p id="video-state" class="muted">Audio only. JPEG frames are sent at 1 FPS.</p>
+      <select id="video-pack">
+        <option value="current">Current frame only</option>
+        <option value="motion" selected>Current + motion tint</option>
+        <option value="motion-strip">Current + tint + strip</option>
+      </select>
+      <p id="video-state" class="muted">Audio only. Packed JPEGs are sent at 1 FPS.</p>
       <video id="video-preview" autoplay playsinline muted></video>
+      <canvas id="gemini-frame-preview"></canvas>
+    </section>
+
+    <section class="live">
+      <p class="eyebrow">LIVE STEER</p>
+      <p class="muted">Audio, video, and text share one Live session. Answers are spoken audio; text is the transcript. TTS stays in the panel below.</p>
+      <label class="muted">Mode
+        <select id="live-mode">
+          <option value="conversation">Conversation</option>
+          <option value="narration">Narration</option>
+          <option value="transcribe">Transcribe</option>
+        </select>
+      </label>
+      <label class="muted">Live voice<select id="live-voice"></select></label>
+      <input id="live-style" type="text" placeholder="Voice feel, e.g. calm present-tense">
+      <label class="muted"><input id="hear-gemini" type="checkbox" checked> Hear Gemini</label>
+      <textarea id="live-prompt" rows="3" placeholder="Steer what to watch or how to answer."></textarea>
+      <button id="live-send" disabled>Send prompt</button>
     </section>
 
     <section id="transcript" class="transcript" aria-live="polite">
@@ -176,7 +199,7 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
     </section>
 
     <footer>Nothing is sent to Cursor automatically. Gemini keys stay in the local Node server.</footer>
-    <script nonce="${nonce}" src="${scriptUri}"></script>
+    <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
   </body>
 </html>`;
   }

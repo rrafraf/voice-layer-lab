@@ -1,6 +1,7 @@
 export type VoiceEvent =
   | { type: "connected"; provider: string }
   | { type: "input_transcript"; text: string }
+  | { type: "input_prompt"; text: string }
   | { type: "output_transcript"; text: string }
   | { type: "output_audio"; data: Buffer; sampleRate: 24000 }
   | { type: "turn_complete" }
@@ -15,6 +16,7 @@ export interface VoiceProvider {
   connect(onEvent: VoiceEventHandler): Promise<void>;
   sendAudio(chunk: Buffer): void;
   sendVideo(chunk: Buffer, mimeType?: string): void;
+  sendText(text: string): void;
   close(): Promise<void>;
 }
 
