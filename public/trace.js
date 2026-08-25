@@ -103,8 +103,8 @@ function paintRow(record) {
   return row;
 }
 
-function nearBottom(log) {
-  return log.scrollHeight - log.scrollTop - log.clientHeight < 32;
+function nearTop(log) {
+  return log.scrollTop < 32;
 }
 
 function updateFollowUi() {
@@ -127,7 +127,7 @@ function maybeFollow() {
   const log = $("trace-log");
   if (!log) return;
   ignoreScroll = true;
-  log.scrollTop = log.scrollHeight;
+  log.scrollTop = 0;
   requestAnimationFrame(() => {
     ignoreScroll = false;
   });
@@ -227,8 +227,8 @@ function emit(level, src, msg, data, origin = "ui") {
 
   const log = $("trace-log");
   if (log) {
-    log.append(paintRow(record));
-    while (log.childElementCount > MAX_ROWS) log.firstElementChild.remove();
+    log.prepend(paintRow(record));
+    while (log.childElementCount > MAX_ROWS) log.lastElementChild.remove();
     noteHeld(record);
   }
 
@@ -258,7 +258,7 @@ function adoptServer(entry) {
   if (entry.data) record.data = entry.data;
   records.push(record);
   if (records.length > MAX_ROWS) records.splice(0, records.length - MAX_ROWS);
-  $("trace-log")?.append(paintRow(record));
+  $("trace-log")?.prepend(paintRow(record));
   if ((WEIGHT[record.lvl] ?? 0) >= WEIGHT.warn) {
     const lastEl = $("trace-last");
     if (lastEl) lastEl.textContent = `${TAG[record.lvl]} ${record.msg}`;
@@ -324,14 +324,10 @@ function bindResize(dock) {
     if (dock.classList.contains("collapsed")) return;
     event.preventDefault();
     const startX = event.clientX;
-    const startY = event.clientY;
     const startW = dock.offsetWidth;
-    const startH = dock.offsetHeight;
     const move = (moveEvent) => {
-      const width = Math.min(window.innerWidth * 0.72, Math.max(280, startW + (startX - moveEvent.clientX)));
-      const height = Math.min(window.innerHeight * 0.85, Math.max(180, startH + (moveEvent.clientY - startY)));
+      const width = Math.min(window.innerWidth * 0.72, Math.max(260, startW + (startX - moveEvent.clientX)));
       dock.style.width = `${width}px`;
-      dock.style.height = `${height}px`;
     };
     const up = () => {
       window.removeEventListener("mousemove", move);
@@ -365,7 +361,7 @@ function bindPanel() {
   $("trace-follow")?.addEventListener("click", () => setFollow(!follow));
   $("trace-filter-clear")?.addEventListener("click", () => pinTraceSrc("", { follow: false }));
   $("trace-copy")?.addEventListener("click", async () => {
-    const text = records.filter(visible).map(formatLine).join("\n");
+    const text = records.filter(visible).slice().reverse().map(formatLine).join("\n");
     await navigator.clipboard.writeText(text);
     const button = $("trace-copy");
     if (button) {
@@ -387,11 +383,11 @@ function bindPanel() {
 
   log?.addEventListener("scroll", () => {
     if (ignoreScroll) return;
-    const atBottom = nearBottom(log);
-    if (follow && !atBottom) {
+    const atTop = nearTop(log);
+    if (follow && !atTop) {
       follow = false;
       updateFollowUi();
-    } else if (!follow && atBottom) {
+    } else if (!follow && atTop) {
       heldCount = 0;
       follow = true;
       updateFollowUi();

@@ -51,7 +51,8 @@ const hearGemini = document.querySelector("#hear-gemini");
 const sessionToggle = document.querySelector("#session-toggle");
 const muteMeButton = document.querySelector("#mute-me");
 const promptToggle = document.querySelector("#prompt-toggle");
-const steerPanel = document.querySelector("#steer");
+const promptSizeButton = document.querySelector("#prompt-size");
+const cameraToggle = document.querySelector("#camera-toggle");
 const audioDirButtons = [...document.querySelectorAll(".audio-dir [data-dir]")];
 
 let socket;
@@ -404,10 +405,30 @@ function setAudioDir(dir) {
   setMuted(false, "audio-dir");
 }
 
-function setPromptOpen(open) {
-  steerPanel.toggleAttribute("hidden", !open);
+function setPromptExpanded(expanded) {
+  const open = Boolean(expanded);
+  livePrompt.classList.toggle("is-expanded", open);
+  livePrompt.rows = open ? 5 : 1;
+  promptSizeButton.setAttribute("aria-pressed", String(open));
+  promptSizeButton.textContent = open ? "Less prompt" : "More prompt";
   promptToggle.setAttribute("aria-pressed", String(open));
   promptToggle.setAttribute("aria-expanded", String(open));
+}
+
+function setPromptOpen(open) {
+  setPromptExpanded(open);
+}
+
+function syncCameraToggle() {
+  const on = videoSource.value === "camera";
+  cameraToggle.classList.toggle("is-on", on);
+  cameraToggle.setAttribute("aria-pressed", String(on));
+  cameraToggle.textContent = on ? "Camera on" : "Camera";
+}
+
+function setCameraOn(on) {
+  videoSource.value = on ? "camera" : "none";
+  videoSource.dispatchEvent(new Event("change"));
 }
 
 function formatUiError(error) {
@@ -498,6 +519,7 @@ function stopVideo() {
   setGeminiError("");
   setVideoState(videoSource.value === "none" ? "See off" : "See stopped");
   if (!geminiViewCanvas.classList.contains("has-frame")) setGeminiEmpty();
+  syncCameraToggle();
 }
 
 function geminiEmptyText() {
@@ -732,6 +754,7 @@ async function startVideo() {
     traceLog("warn", "ui.video", "track.ended", track?.label || kind);
     videoSource.value = "none";
     stopVideo();
+    syncCameraToggle();
   });
   videoPreview.srcObject = videoStream;
   videoPreview.classList.add("active");
@@ -741,6 +764,7 @@ async function startVideo() {
   if (showGeminiView.checked || mapObjects.checked) setGeminiViewOpen(true);
   startVideoSampling();
   packAndPreview();
+  syncCameraToggle();
 }
 
 async function startScreenCapture() {
@@ -1035,11 +1059,17 @@ sessionToggle.addEventListener("click", () => {
   else void start();
 });
 promptToggle.addEventListener("click", () => {
-  setPromptOpen(steerPanel.hasAttribute("hidden"));
+  setPromptExpanded(!livePrompt.classList.contains("is-expanded"));
 });
-document.querySelector("#steer-close").addEventListener("click", () => setPromptOpen(false));
+document.querySelector("#steer-close").addEventListener("click", () => setPromptExpanded(false));
+promptSizeButton.addEventListener("click", () => {
+  setPromptExpanded(!livePrompt.classList.contains("is-expanded"));
+});
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !steerPanel.hasAttribute("hidden")) setPromptOpen(false);
+  if (event.key === "Escape") setPromptExpanded(false);
+});
+cameraToggle.addEventListener("click", () => {
+  setCameraOn(videoSource.value !== "camera");
 });
 for (const button of audioDirButtons) {
   button.addEventListener("click", () => setAudioDir(button.dataset.dir));
@@ -1048,11 +1078,14 @@ for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
   tab.addEventListener("click", () => setFace(tab.dataset.face));
 }
 videoSource.addEventListener("change", () => {
+  syncCameraToggle();
   void startVideo().catch((error) => {
     const message = error.message ?? String(error);
     logEvent("error", "Video source change failed", message);
     setVideoState(message);
     setGeminiEmpty(message);
+    videoSource.value = "none";
+    syncCameraToggle();
   });
 });
 videoPack.addEventListener("change", () => {
@@ -1114,7 +1147,9 @@ hearGemini.addEventListener("change", () => {
 });
 liveSendButton.addEventListener("click", sendLivePrompt);
 livePrompt.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+  if (event.key !== "Enter") return;
+  const expanded = livePrompt.classList.contains("is-expanded");
+  if (!expanded || event.ctrlKey || event.metaKey) {
     event.preventDefault();
     sendLivePrompt();
   }
@@ -1148,6 +1183,8 @@ void loadLiveCatalog().catch((error) => {
   liveState.textContent = error.message ?? String(error);
   logEvent("error", "Live catalog failed", error.message ?? String(error));
 });
+videoPack.value = "current";
 syncSessionToggle();
 syncAudioDir();
-setPromptOpen(false);
+syncCameraToggle();
+setPromptExpanded(false);

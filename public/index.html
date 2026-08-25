@@ -33,13 +33,13 @@
           <details class="info">
             <summary aria-label="About this lab">i</summary>
             <div class="info-pop">
-              Conversation is Gemini Live. Exact text is request/response TTS.
-              Trace is pinned top-right. Prompt steers Gemini’s next output;
-              it is not the transcript.
+              Conversation is Gemini Live. Prompt under Start steers the next
+              output; it is not the transcript. Camera is on/off with a small
+              preview to the right of Start. Trace stays on the right edge.
             </div>
           </details>
         </div>
-        <div class="mode-switch" role="tablist" aria-label="Lab mode">
+        <div class="mode-switch chrome-hide" role="tablist" aria-label="Lab mode">
           <button type="button" role="tab" id="tab-live" data-face="live" aria-controls="face-live" aria-selected="true">Conversation</button>
           <button type="button" role="tab" id="tab-tts" data-face="tts" aria-controls="face-tts" aria-selected="false">Exact text</button>
         </div>
@@ -47,18 +47,18 @@
 
       <section class="face face-live" id="face-live" role="tabpanel" aria-labelledby="tab-live">
         <div class="talk-board">
-          <div class="session-band">
-            <aside class="audio-rail" aria-label="Audio">
-              <button id="mute-me" class="io-mute" type="button" aria-pressed="false" title="Mute my microphone">Me</button>
-              <button id="mute" class="io-mute" data-trace-src="ui.mute" type="button" aria-pressed="true" title="Gemini audio out">Out</button>
-              <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
-              <button id="prompt-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="steer" title="Steer Gemini’s next output">Prompt</button>
-              <label class="inline" for="live-voice">
-                Voice
-                <select id="live-voice"></select>
-              </label>
-            </aside>
+          <aside class="audio-rail" aria-label="Audio">
+            <button id="mute-me" class="io-mute" type="button" aria-pressed="false" title="Mute my microphone">Me</button>
+            <button id="mute" class="io-mute" data-trace-src="ui.mute" type="button" aria-pressed="true" title="Gemini audio out">Out</button>
+            <input id="hear-gemini" class="sr-only" type="checkbox" checked tabindex="-1" aria-hidden="true" />
+            <button id="prompt-toggle" class="chrome-hide" type="button" aria-pressed="true" aria-expanded="true" aria-controls="steer" title="Steer Gemini’s next output">Prompt</button>
+            <label class="inline" for="live-voice">
+              Voice
+              <select id="live-voice"></select>
+            </label>
+          </aside>
 
+          <div class="center-col">
             <div class="session-core">
               <button id="session-toggle" class="start-stop" type="button" title="Start" aria-label="Start session">Start</button>
               <div class="sr-only">
@@ -66,49 +66,19 @@
                 <button id="stop" type="button" disabled>Stop</button>
               </div>
               <div id="status" class="status idle"><span></span>Idle</div>
-              <div class="audio-dir" role="radiogroup" aria-label="Audio direction">
+              <div class="audio-dir chrome-hide" role="radiogroup" aria-label="Audio direction">
                 <button type="button" id="audio-dir-in" data-dir="in" title="Hear me only" aria-pressed="false">↓</button>
                 <button type="button" id="audio-dir-both" data-dir="both" title="Both ways" aria-pressed="true">↕</button>
                 <button type="button" id="audio-dir-out" data-dir="out" title="Hear her only" aria-pressed="false">↑</button>
               </div>
             </div>
 
-            <section class="see" aria-label="What she sees">
-              <label class="inline" for="video-source">
-                See
-                <select id="video-source" data-trace-src="ui.video">
-                  <option value="none">Off</option>
-                  <option value="camera">Camera</option>
-                  <option value="screen">Screen</option>
-                </select>
-              </label>
-              <label class="inline" for="video-pack">
-                Pack
-                <select id="video-pack" data-trace-src="ui.video">
-                  <option value="current">Frame</option>
-                  <option value="motion" selected>Motion</option>
-                  <option value="motion-strip">Strip</option>
-                </select>
-              </label>
-              <label class="toggle">
-                <input id="show-gemini-view" type="checkbox" />
-                Preview
-              </label>
-              <label class="toggle">
-                <input id="map-objects" type="checkbox" />
-                Boxes
-              </label>
-              <button id="pop-gemini-view" type="button">Pop out</button>
-              <span id="video-state" class="hint">See off</span>
-              <video id="video-preview" autoplay playsinline muted></video>
-            </section>
-
-            <section class="steer" id="steer" hidden aria-labelledby="live-lab-title">
-              <div class="steer-head">
+            <section class="steer" id="steer" aria-labelledby="live-lab-title">
+              <div class="steer-head chrome-hide">
                 <h2 id="live-lab-title">Live steer</h2>
                 <button type="button" id="steer-close">Close</button>
               </div>
-              <div class="steer-row">
+              <div class="steer-row chrome-hide">
                 <span id="live-state" class="hint">Ready</span>
                 <label class="inline" for="live-mode">
                   Mode
@@ -123,36 +93,71 @@
                   <input id="live-style" type="text" value="calm, unhurried, one short answer then wait" placeholder="calm, unhurried, one short answer then wait" />
                 </label>
               </div>
-              <div class="steer-row">
-                <textarea id="live-prompt" rows="3" placeholder="Steer Gemini’s next output, then Send. This is not the transcript."></textarea>
-                <button id="live-send" type="button" disabled>Send</button>
-              </div>
+              <textarea id="live-prompt" rows="1" placeholder="Steer Gemini’s next output. This is not the transcript."></textarea>
             </section>
+
+            <div class="prompt-size-row">
+              <button type="button" id="prompt-size" aria-pressed="false">More prompt</button>
+              <button id="live-send" type="button" disabled>Send</button>
+            </div>
+
+            <textarea id="transcript" class="transcript" aria-live="polite" placeholder="Conversation lands here."></textarea>
+
+            <div class="canvas-actions">
+              <button id="clear-prompt" type="button" disabled>Clear</button>
+              <button id="download" type="button" disabled>Download transcript</button>
+            </div>
           </div>
 
-          <textarea id="transcript" class="transcript" aria-live="polite" placeholder="Conversation lands here."></textarea>
-
-          <div class="canvas-actions">
-            <button id="clear-prompt" type="button" disabled>Clear</button>
-            <button id="download" type="button" disabled>Download transcript</button>
-          </div>
-
-          <details class="lab-more">
-            <summary>Cursor handoff</summary>
-            <section class="cursor-prompt" aria-labelledby="cursor-prompt-title">
-              <div class="diagnostics-header">
-                <h2 id="cursor-prompt-title">Review before paste</h2>
-                <div class="prompt-actions">
-                  <button id="copy-prompt" type="button" disabled>Copy</button>
-                </div>
-              </div>
-              <pre id="prompt-preview" class="prompt-preview">Spoken Cursor prompt lands here.</pre>
-            </section>
-          </details>
+          <section class="camera-rail" aria-label="Camera">
+            <button id="camera-toggle" type="button" aria-pressed="false" title="Camera on or off">Camera</button>
+            <video id="video-preview" autoplay playsinline muted></video>
+            <div class="chrome-hide">
+              <label class="inline" for="video-source">
+                See
+                <select id="video-source" data-trace-src="ui.video">
+                  <option value="none" selected>Off</option>
+                  <option value="camera">Camera</option>
+                  <option value="screen">Screen</option>
+                </select>
+              </label>
+              <label class="inline" for="video-pack">
+                Pack
+                <select id="video-pack" data-trace-src="ui.video">
+                  <option value="current" selected>Frame</option>
+                  <option value="motion">Motion</option>
+                  <option value="motion-strip">Strip</option>
+                </select>
+              </label>
+              <label class="toggle">
+                <input id="show-gemini-view" type="checkbox" />
+                Preview
+              </label>
+              <label class="toggle">
+                <input id="map-objects" type="checkbox" />
+                Boxes
+              </label>
+              <button id="pop-gemini-view" type="button">Pop out</button>
+              <span id="video-state" class="hint">See off</span>
+            </div>
+          </section>
         </div>
+
+        <details class="lab-more">
+          <summary>Cursor handoff</summary>
+          <section class="cursor-prompt" aria-labelledby="cursor-prompt-title">
+            <div class="diagnostics-header">
+              <h2 id="cursor-prompt-title">Review before paste</h2>
+              <div class="prompt-actions">
+                <button id="copy-prompt" type="button" disabled>Copy</button>
+              </div>
+            </div>
+            <pre id="prompt-preview" class="prompt-preview">Spoken Cursor prompt lands here.</pre>
+          </section>
+        </details>
       </section>
 
-      <section class="face face-tts" id="face-tts" role="tabpanel" aria-labelledby="tab-tts" hidden>
+      <section class="face face-tts chrome-hide" id="face-tts" role="tabpanel" aria-labelledby="tab-tts" hidden>
         <article class="tts-lab" aria-labelledby="tts-lab-title">
           <div class="diagnostics-header">
             <h2 id="tts-lab-title">Exact text recitation</h2>
@@ -255,7 +260,7 @@
       </div>
       <div class="gemini-dock-stage" id="gemini-view-stage">
         <canvas id="gemini-view-canvas"></canvas>
-        <p id="gemini-view-empty" class="gemini-dock-empty">See is off. Pick Camera or Screen, then Listen.</p>
+        <p id="gemini-view-empty" class="gemini-dock-empty">Camera is off.</p>
       </div>
       <p id="gemini-view-error" class="gemini-dock-error" hidden></p>
       <pre id="gemini-view-table" class="gemini-dock-table">Boxes draws a table on this preview. Park it off a shared screen.</pre>
