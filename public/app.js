@@ -1037,6 +1037,10 @@ sessionToggle.addEventListener("click", () => {
 promptToggle.addEventListener("click", () => {
   setPromptOpen(steerPanel.hasAttribute("hidden"));
 });
+document.querySelector("#steer-close").addEventListener("click", () => setPromptOpen(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !steerPanel.hasAttribute("hidden")) setPromptOpen(false);
+});
 for (const button of audioDirButtons) {
   button.addEventListener("click", () => setAudioDir(button.dataset.dir));
 }
