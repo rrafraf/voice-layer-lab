@@ -48,6 +48,14 @@ const livePrompt = document.querySelector("#live-prompt");
 const liveSendButton = document.querySelector("#live-send");
 const liveState = document.querySelector("#live-state");
 const hearGemini = document.querySelector("#hear-gemini");
+const sessionToggle = document.querySelector("#session-toggle");
+const muteMeButton = document.querySelector("#mute-me");
+const promptToggle = document.querySelector("#prompt-toggle");
+const promptSizeButton = document.querySelector("#prompt-size");
+const promptGrowButton = document.querySelector("#prompt-grow");
+const promptShrinkButton = document.querySelector("#prompt-shrink");
+const cameraToggle = document.querySelector("#camera-toggle");
+const audioDirButtons = [...document.querySelectorAll(".audio-dir [data-dir]")];
 
 let socket;
 let stream;
@@ -57,6 +65,8 @@ let outputContext;
 let playbackCursor = 0;
 let muted = false;
 let muteReason = "user";
+let inputMuted = false;
+let sessionArmed = false;
 const activeSources = new Set();
 const turns = [];
 let micTest;
@@ -133,6 +143,7 @@ function setMicButtons(recording) {
   recordProcessedButton.disabled = recording;
   stopTestButton.disabled = !recording;
   startButton.disabled = recording;
+  sessionToggle.disabled = recording;
 }
 
 async function recordMicTest(mode) {
@@ -258,7 +269,9 @@ function updateCursorPrompt() {
   const prompt = formatCursorPrompt();
   promptPreview.textContent = prompt || "Your spoken Cursor prompt will appear here.";
   copyPromptButton.disabled = !prompt;
-  clearPromptButton.disabled = turns.length === 0;
+  const hasText = Boolean(transcript.value?.trim() || turns.length);
+  clearPromptButton.disabled = !hasText;
+  downloadButton.disabled = !hasText;
 }
 
 function scrollTranscriptToEnd() {
@@ -266,9 +279,8 @@ function scrollTranscriptToEnd() {
 }
 
 function appendTurn(speaker, text) {
-  transcript.querySelector(".empty")?.remove();
   if (activeTranscriptTurn?.speaker === speaker) {
-    activeTranscriptTurn.body.textContent += text;
+    transcript.value += text;
     turns[activeTranscriptTurn.turnIndex].text += text;
     scrollTranscriptToEnd();
     updateCursorPrompt();
@@ -277,18 +289,10 @@ function appendTurn(speaker, text) {
 
   finishTranscriptTurn();
   turns.push({ speaker, text, at: new Date().toISOString() });
-  const row = document.createElement("div");
-  row.className = `turn ${speaker === "Gemini" ? "model" : speaker === "PROMPT" ? "prompt" : "user"}`;
-  const label = document.createElement("div");
-  label.className = "speaker";
-  label.textContent = speaker;
-  const body = document.createElement("p");
-  body.textContent = text;
-  row.append(label, body);
-  transcript.append(row);
-  activeTranscriptTurn = { speaker, body, row, turnIndex: turns.length - 1 };
+  const prefix = transcript.value ? "\n" : "";
+  transcript.value += `${prefix}${speaker}: ${text}`;
+  activeTranscriptTurn = { speaker, turnIndex: turns.length - 1 };
   scrollTranscriptToEnd();
-  downloadButton.disabled = false;
   updateCursorPrompt();
 }
 
@@ -345,6 +349,7 @@ function setMuted(nextMuted, reason = "user") {
   const next = Boolean(nextMuted);
   if (muted === next) {
     muteReason = reason;
+    syncAudioDir();
     return;
   }
   muted = next;
@@ -356,15 +361,133 @@ function setMuted(nextMuted, reason = "user") {
     void outputContext.resume();
   }
   muteButton.classList.toggle("active", muted);
-  muteButton.textContent = muted ? "Hear her off" : "Hear her";
+  muteButton.classList.toggle("off", muted);
+  muteButton.textContent = "Out";
   muteButton.setAttribute("aria-pressed", muted ? "false" : "true");
   hearGemini.checked = !muted;
   traceLog("info", "ui.mute", muted ? "on" : "off", reason);
+  syncAudioDir();
+}
+
+function setInputMuted(nextMuted, reason = "user") {
+  inputMuted = Boolean(nextMuted);
+  muteMeButton.classList.toggle("active", inputMuted);
+  muteMeButton.classList.toggle("off", inputMuted);
+  muteMeButton.setAttribute("aria-pressed", String(inputMuted));
+  traceLog("info", "ui.mic", inputMuted ? "muted" : "open", reason);
+  syncAudioDir();
+}
+
+function currentAudioDir() {
+  if (!inputMuted && muted) return "in";
+  if (inputMuted && !muted) return "out";
+  if (!inputMuted && !muted) return "both";
+  return "";
+}
+
+function syncAudioDir() {
+  const dir = currentAudioDir();
+  for (const button of audioDirButtons) {
+    button.setAttribute("aria-pressed", String(button.dataset.dir === dir));
+  }
+}
+
+function setAudioDir(dir) {
+  if (dir === "in") {
+    setInputMuted(false, "audio-dir");
+    setMuted(true, "audio-dir");
+    return;
+  }
+  if (dir === "out") {
+    setInputMuted(true, "audio-dir");
+    setMuted(false, "audio-dir");
+    return;
+  }
+  setInputMuted(false, "audio-dir");
+  setMuted(false, "audio-dir");
+}
+
+const PROMPT_MIN_ROWS = 1;
+const PROMPT_MAX_ROWS = 9;
+const PROMPT_LINE_PX = 22;
+
+function setPromptRows(rows) {
+  const next = Math.max(PROMPT_MIN_ROWS, Math.min(PROMPT_MAX_ROWS, Number(rows) || PROMPT_MIN_ROWS));
+  livePrompt.rows = next;
+  const height = `${Math.max(34, next * PROMPT_LINE_PX)}px`;
+  livePrompt.style.minHeight = height;
+  livePrompt.style.maxHeight = height;
+  livePrompt.classList.toggle("is-expanded", next > 1);
+  promptSizeButton.setAttribute("aria-pressed", String(next > 1));
+  promptToggle.setAttribute("aria-pressed", String(next > 1));
+  promptToggle.setAttribute("aria-expanded", String(next > 1));
+  promptShrinkButton.disabled = next <= PROMPT_MIN_ROWS;
+  promptGrowButton.disabled = next >= PROMPT_MAX_ROWS;
+}
+
+function setPromptExpanded(expanded) {
+  setPromptRows(expanded ? 5 : 1);
+}
+
+function nudgePrompt(delta) {
+  setPromptRows((Number(livePrompt.rows) || 1) + delta);
+}
+
+function setPromptOpen(open) {
+  setPromptExpanded(open);
+}
+
+function syncCameraToggle() {
+  const on = videoSource.value === "camera";
+  cameraToggle.classList.toggle("is-on", on);
+  cameraToggle.setAttribute("aria-pressed", String(on));
+  cameraToggle.textContent = on ? "Camera on" : "Camera";
+}
+
+function setCameraOn(on) {
+  videoSource.value = on ? "camera" : "none";
+  videoSource.dispatchEvent(new Event("change"));
+}
+
+function formatUiError(error) {
+  const raw = error?.message ?? String(error ?? "");
+  try {
+    const parsed = JSON.parse(raw);
+    const nested = parsed?.error?.message ?? parsed?.message ?? parsed?.error;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+  } catch {
+    /* keep the raw message */
+  }
+  const compact = raw.replace(/\s+/g, " ").trim();
+  return compact.length > 96 ? `${compact.slice(0, 93)}…` : compact;
+}
+
+function setTtsState(label, kind = "ok") {
+  ttsState.textContent = label;
+  ttsState.className = `test-state${kind === "error" ? " error" : ""}`;
 }
 
 function setVideoState(label) {
   videoState.textContent = label;
   videoState.hidden = label === "Audio only" || / selected$/.test(label);
+}
+
+function syncSessionToggle() {
+  const running = sessionArmed || Boolean(socket || stream);
+  sessionToggle.classList.toggle("running", running);
+  sessionToggle.textContent = running ? "Stop" : "Start";
+  sessionToggle.title = running ? "Stop" : "Start";
+  sessionToggle.setAttribute("aria-label", running ? "Stop session" : "Start session");
+  sessionToggle.setAttribute("aria-pressed", String(running));
+}
+
+function setFace(face) {
+  document.body.dataset.face = face;
+  document.querySelector("#face-live").hidden = face !== "live";
+  document.querySelector("#face-tts").hidden = face !== "tts";
+  for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
+    tab.setAttribute("aria-selected", String(tab.dataset.face === face));
+  }
 }
 
 function sendLiveSession() {
@@ -390,7 +513,6 @@ function sendLivePrompt() {
     return;
   }
   socket.send(JSON.stringify({ type: "text", text }));
-  livePrompt.value = "";
   liveState.textContent = "Prompt sent";
   logEvent("ok", "Live text prompt sent", `${text.length} characters`);
 }
@@ -415,6 +537,7 @@ function stopVideo() {
   setGeminiError("");
   setVideoState(videoSource.value === "none" ? "See off" : "See stopped");
   if (!geminiViewCanvas.classList.contains("has-frame")) setGeminiEmpty();
+  syncCameraToggle();
 }
 
 function geminiEmptyText() {
@@ -649,6 +772,7 @@ async function startVideo() {
     traceLog("warn", "ui.video", "track.ended", track?.label || kind);
     videoSource.value = "none";
     stopVideo();
+    syncCameraToggle();
   });
   videoPreview.srcObject = videoStream;
   videoPreview.classList.add("active");
@@ -658,6 +782,7 @@ async function startVideo() {
   if (showGeminiView.checked || mapObjects.checked) setGeminiViewOpen(true);
   startVideoSampling();
   packAndPreview();
+  syncCameraToggle();
 }
 
 async function startScreenCapture() {
@@ -682,8 +807,10 @@ async function startScreenCapture() {
 }
 
 async function start() {
-  if (socket || stream) return;
+  if (socket || stream || sessionArmed) return;
+  sessionArmed = true;
   startButton.disabled = true;
+  syncSessionToggle();
   setStatus("Connecting…");
   logEvent("info", "Start requested");
   traceLog("info", "ui.start", "click");
@@ -736,10 +863,12 @@ async function start() {
       logEvent("ok", "Local voice connection open");
       traceLog("info", "ui.ws", "open");
       sendLiveSession();
+      sendLivePrompt();
       liveSendButton.disabled = false;
       let audioBlocks = 0;
       processor.onaudioprocess = (event) => {
         if (socket.readyState !== WebSocket.OPEN) return;
+        if (inputMuted) return;
         const input = event.inputBuffer.getChannelData(0);
         audioBlocks += 1;
         if (audioBlocks === 1 || audioBlocks % 25 === 0) {
@@ -820,7 +949,7 @@ async function stop(resetStatus = true) {
   processor = undefined;
   stream?.getTracks().forEach((track) => track.stop());
   stream = undefined;
-  stopVideo();
+  if (videoSource.value === "none") stopVideo();
   if (socket?.readyState === WebSocket.OPEN) socket.close();
   socket = undefined;
   await inputContext?.close();
@@ -829,14 +958,16 @@ async function stop(resetStatus = true) {
   await outputContext?.close();
   outputContext = undefined;
   finishTranscriptTurn();
+  sessionArmed = false;
   startButton.disabled = false;
   stopButton.disabled = true;
   liveSendButton.disabled = true;
+  syncSessionToggle();
   if (resetStatus) setStatus("Idle");
 }
 
 function downloadTranscript() {
-  const text = turns.map((turn) => `[${turn.at}] ${turn.speaker}: ${turn.text}`).join("\n");
+  const text = transcript.value.trim() || turns.map((turn) => `[${turn.at}] ${turn.speaker}: ${turn.text}`).join("\n");
   const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
   const link = document.createElement("a");
   link.href = url;
@@ -857,24 +988,15 @@ async function copyCursorPrompt() {
 function clearTranscript() {
   turns.length = 0;
   finishTranscriptTurn();
-  transcript.replaceChildren();
-  const empty = document.createElement("div");
-  empty.className = "empty";
-  empty.replaceChildren();
-  const title = document.createElement("strong");
-  title.textContent = "No conversation yet";
-  const hint = document.createElement("span");
-  hint.textContent = "Listen to capture Live turns.";
-  empty.append(title, hint);
-  transcript.append(empty);
-  downloadButton.disabled = true;
+  transcript.value = "";
   updateCursorPrompt();
   logEvent("info", "Transcript cleared");
 }
 
 function fillSelect(select, values, selected) {
+  const list = Array.isArray(values) ? values : [];
   select.replaceChildren();
-  for (const value of values) {
+  for (const value of list) {
     const option = document.createElement("option");
     if (typeof value === "string") {
       option.value = value;
@@ -888,17 +1010,24 @@ function fillSelect(select, values, selected) {
   }
 }
 
+async function readCatalog(path) {
+  const response = await fetch(path);
+  const catalog = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(catalog?.error ?? `${path} HTTP ${response.status}`);
+  }
+  return catalog;
+}
+
 async function loadTtsCatalog() {
-  const response = await fetch("/api/tts");
-  const catalog = await response.json();
+  const catalog = await readCatalog("/api/tts");
   fillSelect(ttsModel, catalog.models, catalog.defaultModel);
   fillSelect(ttsVoice, catalog.voices, catalog.defaultVoice);
   setTtsState("Ready");
 }
 
 async function loadLiveCatalog() {
-  const response = await fetch("/api/live");
-  const catalog = await response.json();
+  const catalog = await readCatalog("/api/live");
   fillSelect(liveVoice, catalog.voices, catalog.defaultVoice);
   liveState.textContent = `${liveMode.value} · ${liveVoice.value}`;
 }
@@ -943,13 +1072,39 @@ async function speakWithTts() {
 
 startButton.addEventListener("click", start);
 stopButton.addEventListener("click", () => stop());
+sessionToggle.addEventListener("click", () => {
+  if (sessionArmed || socket || stream) void stop();
+  else void start();
+});
+promptToggle.addEventListener("click", () => nudgePrompt(2));
+document.querySelector("#steer-close").addEventListener("click", () => setPromptRows(1));
+promptSizeButton.addEventListener("click", () => nudgePrompt(2));
+promptGrowButton.addEventListener("click", () => nudgePrompt(2));
+promptShrinkButton.addEventListener("click", () => nudgePrompt(-2));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setPromptExpanded(false);
+});
+cameraToggle.addEventListener("click", () => {
+  setCameraOn(videoSource.value !== "camera");
+});
+for (const button of audioDirButtons) {
+  button.addEventListener("click", () => setAudioDir(button.dataset.dir));
+}
+for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
+  tab.addEventListener("click", () => setFace(tab.dataset.face));
+}
 videoSource.addEventListener("change", () => {
-  void startVideo().catch((error) => {
-    const message = error.message ?? String(error);
-    logEvent("error", "Video source change failed", message);
-    setVideoState(message);
-    setGeminiEmpty(message);
-  });
+  void startVideo()
+    .catch((error) => {
+      const message = error.message ?? String(error);
+      logEvent("error", "Video source change failed", message);
+      setVideoState(message);
+      setGeminiEmpty(message);
+      videoSource.value = "none";
+    })
+    .finally(() => {
+      syncCameraToggle();
+    });
 });
 videoPack.addEventListener("change", () => {
   if (videoStream) {
@@ -1002,23 +1157,29 @@ geminiViewDrag.addEventListener("mousedown", (event) => {
 muteButton.addEventListener("click", () => {
   setMuted(!muted, "button");
 });
+muteMeButton.addEventListener("click", () => {
+  setInputMuted(!inputMuted, "button");
+});
 hearGemini.addEventListener("change", () => {
   setMuted(!hearGemini.checked, "hear-checkbox");
 });
 liveSendButton.addEventListener("click", sendLivePrompt);
 livePrompt.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+  if (event.key !== "Enter") return;
+  const tall = (Number(livePrompt.rows) || 1) > 1;
+  if (!tall || event.ctrlKey || event.metaKey) {
     event.preventDefault();
     sendLivePrompt();
   }
 });
+liveStyle.addEventListener("change", () => {
+  if (socket?.readyState === WebSocket.OPEN) sendLiveSession();
+});
 liveMode.addEventListener("change", () => {
   if (liveMode.value === "transcribe") setMuted(true, "transcribe");
   else if (muteReason === "transcribe") setMuted(false, "mode");
-  liveState.textContent = socket?.readyState === WebSocket.OPEN
-    ? "Stop and start to apply a new mode"
-    : `${liveMode.value} · ${liveVoice.value}`;
 });
+transcript.addEventListener("input", updateCursorPrompt);
 downloadButton.addEventListener("click", downloadTranscript);
 copyPromptButton.addEventListener("click", () => void copyCursorPrompt());
 clearPromptButton.addEventListener("click", clearTranscript);
@@ -1035,8 +1196,16 @@ window.addEventListener("beforeunload", () => {
   if (ttsAudioUrl) URL.revokeObjectURL(ttsAudioUrl);
   void stop(false);
 });
-void Promise.all([loadTtsCatalog(), loadLiveCatalog()]).catch((error) => {
-  ttsState.textContent = error.message ?? String(error);
-  liveState.textContent = error.message ?? String(error);
-  logEvent("error", "API catalog failed", error.message ?? String(error));
+void loadTtsCatalog().catch((error) => {
+  setTtsState(formatUiError(error), "error");
+  logEvent("error", "TTS catalog failed", error.message ?? String(error));
 });
+void loadLiveCatalog().catch((error) => {
+  liveState.textContent = error.message ?? String(error);
+  logEvent("error", "Live catalog failed", error.message ?? String(error));
+});
+videoPack.value = "current";
+syncSessionToggle();
+syncAudioDir();
+syncCameraToggle();
+setPromptExpanded(false);
