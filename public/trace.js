@@ -51,6 +51,7 @@ function ensurePanel() {
   dock.id = "trace-dock";
   dock.className = "trace-dock";
   dock.innerHTML = `
+    <button type="button" id="trace-resize" class="trace-resize" aria-label="Resize Trace"></button>
     <div class="trace-dock-bar">
       <button type="button" id="trace-toggle" aria-expanded="true">▾ Trace</button>
       <span id="trace-last" class="trace-last"></span>
@@ -302,13 +303,43 @@ function setCollapsed(collapsed) {
   const toggle = $("trace-toggle");
   if (!dock) return;
   dock.classList.toggle("collapsed", collapsed);
+  if (collapsed) {
+    dock.style.width = "";
+    dock.style.height = "";
+  }
   if (toggle) {
     toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
-    toggle.textContent = collapsed ? "▸ Trace" : "▾ Trace";
+    toggle.textContent = collapsed ? "Trace" : "▾ Trace";
   }
   try {
     localStorage.setItem(STORAGE_COLLAPSED, collapsed ? "1" : "0");
   } catch {}
+}
+
+function bindResize(dock) {
+  const handle = $("trace-resize");
+  if (!handle || handle.dataset.bound) return;
+  handle.dataset.bound = "1";
+  handle.addEventListener("mousedown", (event) => {
+    if (dock.classList.contains("collapsed")) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startW = dock.offsetWidth;
+    const startH = dock.offsetHeight;
+    const move = (moveEvent) => {
+      const width = Math.min(window.innerWidth * 0.72, Math.max(280, startW + (startX - moveEvent.clientX)));
+      const height = Math.min(window.innerHeight * 0.85, Math.max(180, startH + (moveEvent.clientY - startY)));
+      dock.style.width = `${width}px`;
+      dock.style.height = `${height}px`;
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  });
 }
 
 function bindPanel() {
@@ -391,6 +422,7 @@ function bindPanel() {
 
   setLevel(savedLevel);
   setCollapsed(savedCollapsed);
+  bindResize(dock);
   updateFollowUi();
 }
 

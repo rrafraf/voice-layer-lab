@@ -49,10 +49,9 @@ const liveSendButton = document.querySelector("#live-send");
 const liveState = document.querySelector("#live-state");
 const hearGemini = document.querySelector("#hear-gemini");
 const sessionToggle = document.querySelector("#session-toggle");
-const promptToggle = document.querySelector("#prompt-toggle");
-const steer = document.querySelector("#steer");
 const muteMeButton = document.querySelector("#mute-me");
-const jobButtons = [...document.querySelectorAll(".job-mode [data-job]")];
+const audioSteer = document.querySelector("#audio-steer");
+const videoSteer = document.querySelector("#video-steer");
 
 let socket;
 let stream;
@@ -63,7 +62,6 @@ let playbackCursor = 0;
 let muted = false;
 let muteReason = "user";
 let inputMuted = false;
-let jobMode = "talk";
 let sessionArmed = false;
 const activeSources = new Set();
 const turns = [];
@@ -267,7 +265,9 @@ function updateCursorPrompt() {
   const prompt = formatCursorPrompt();
   promptPreview.textContent = prompt || "Your spoken Cursor prompt will appear here.";
   copyPromptButton.disabled = !prompt;
-  clearPromptButton.disabled = turns.length === 0;
+  const hasText = Boolean(transcript.value?.trim() || turns.length);
+  clearPromptButton.disabled = !hasText;
+  downloadButton.disabled = !hasText;
 }
 
 function scrollTranscriptToEnd() {
@@ -275,9 +275,8 @@ function scrollTranscriptToEnd() {
 }
 
 function appendTurn(speaker, text) {
-  transcript.querySelector(".empty")?.remove();
   if (activeTranscriptTurn?.speaker === speaker) {
-    activeTranscriptTurn.body.textContent += text;
+    transcript.value += text;
     turns[activeTranscriptTurn.turnIndex].text += text;
     scrollTranscriptToEnd();
     updateCursorPrompt();
@@ -286,18 +285,10 @@ function appendTurn(speaker, text) {
 
   finishTranscriptTurn();
   turns.push({ speaker, text, at: new Date().toISOString() });
-  const row = document.createElement("div");
-  row.className = `turn ${speaker === "Gemini" ? "model" : speaker === "PROMPT" ? "prompt" : "user"}`;
-  const label = document.createElement("div");
-  label.className = "speaker";
-  label.textContent = speaker;
-  const body = document.createElement("p");
-  body.textContent = text;
-  row.append(label, body);
-  transcript.append(row);
-  activeTranscriptTurn = { speaker, body, row, turnIndex: turns.length - 1 };
+  const prefix = transcript.value ? "\n" : "";
+  transcript.value += `${prefix}${speaker}: ${text}`;
+  activeTranscriptTurn = { speaker, turnIndex: turns.length - 1 };
   scrollTranscriptToEnd();
-  downloadButton.disabled = false;
   updateCursorPrompt();
 }
 
@@ -380,34 +371,17 @@ function setInputMuted(nextMuted, reason = "user") {
   traceLog("info", "ui.mic", inputMuted ? "muted" : "open", reason);
 }
 
-function applyJobMode(nextJob) {
-  const job = nextJob === "see" || nextJob === "transcribe" ? nextJob : "talk";
-  jobMode = job;
-  document.body.dataset.job = job;
-  for (const button of jobButtons) {
-    button.setAttribute("aria-pressed", String(button.dataset.job === job));
-  }
+function joinedSteerText() {
+  const audio = audioSteer.value.trim();
+  const video = videoSteer.value.trim();
+  const parts = [];
+  if (audio) parts.push(`Audio: ${audio}`);
+  if (video) parts.push(`Video: ${video}`);
+  return parts.join("\n");
+}
 
-  if (job === "transcribe") {
-    liveMode.value = "transcribe";
-    setMuted(true, "transcribe");
-    if (videoSource.value !== "none") videoSource.value = "none";
-  } else {
-    liveMode.value = "conversation";
-    if (muteReason === "transcribe") setMuted(false, "mode");
-    if (job === "see" && videoSource.value === "none") videoSource.value = "camera";
-    if (job === "talk" && videoSource.value !== "none") videoSource.value = "none";
-  }
-
-  liveState.textContent = `${job} · ${liveMode.value}`;
-  sendLiveSession();
-  traceLog("info", "ui.job", job, `mode=${liveMode.value} see=${videoSource.value}`);
-  const running = sessionArmed || Boolean(socket || stream);
-  if (running) {
-    void startVideo().catch((error) => setVideoState(error.message ?? String(error)));
-  } else if (videoSource.value === "none") {
-    stopVideo();
-  }
+function syncLivePrompt() {
+  livePrompt.value = joinedSteerText();
 }
 
 function formatUiError(error) {
@@ -465,6 +439,7 @@ function sendLiveSession() {
 }
 
 function sendLivePrompt() {
+  syncLivePrompt();
   const text = livePrompt.value.trim();
   if (!text) return;
   if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -473,7 +448,6 @@ function sendLivePrompt() {
     return;
   }
   socket.send(JSON.stringify({ type: "text", text }));
-  livePrompt.value = "";
   liveState.textContent = "Prompt sent";
   logEvent("ok", "Live text prompt sent", `${text.length} characters`);
 }
@@ -821,6 +795,7 @@ async function start() {
       logEvent("ok", "Local voice connection open");
       traceLog("info", "ui.ws", "open");
       sendLiveSession();
+      sendLivePrompt();
       liveSendButton.disabled = false;
       let audioBlocks = 0;
       processor.onaudioprocess = (event) => {
@@ -924,7 +899,7 @@ async function stop(resetStatus = true) {
 }
 
 function downloadTranscript() {
-  const text = turns.map((turn) => `[${turn.at}] ${turn.speaker}: ${turn.text}`).join("\n");
+  const text = transcript.value.trim() || turns.map((turn) => `[${turn.at}] ${turn.speaker}: ${turn.text}`).join("\n");
   const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
   const link = document.createElement("a");
   link.href = url;
@@ -945,17 +920,7 @@ async function copyCursorPrompt() {
 function clearTranscript() {
   turns.length = 0;
   finishTranscriptTurn();
-  transcript.replaceChildren();
-  const empty = document.createElement("div");
-  empty.className = "empty";
-  empty.replaceChildren();
-  const title = document.createElement("strong");
-  title.textContent = "No conversation yet";
-  const hint = document.createElement("span");
-  hint.textContent = "Listen to capture Live turns.";
-  empty.append(title, hint);
-  transcript.append(empty);
-  downloadButton.disabled = true;
+  transcript.value = "";
   updateCursorPrompt();
   logEvent("info", "Transcript cleared");
 }
@@ -1043,17 +1008,9 @@ sessionToggle.addEventListener("click", () => {
   if (sessionArmed || socket || stream) void stop();
   else void start();
 });
-for (const button of jobButtons) {
-  button.addEventListener("click", () => applyJobMode(button.dataset.job));
-}
 for (const tab of document.querySelectorAll(".mode-switch [role='tab']")) {
   tab.addEventListener("click", () => setFace(tab.dataset.face));
 }
-promptToggle.addEventListener("click", () => {
-  const open = steer.hidden;
-  steer.hidden = !open;
-  promptToggle.setAttribute("aria-pressed", String(open));
-});
 videoSource.addEventListener("change", () => {
   void startVideo().catch((error) => {
     const message = error.message ?? String(error);
@@ -1126,9 +1083,20 @@ livePrompt.addEventListener("keydown", (event) => {
     sendLivePrompt();
   }
 });
+for (const field of [audioSteer, videoSteer]) {
+  field.addEventListener("input", syncLivePrompt);
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      sendLivePrompt();
+    }
+  });
+}
 liveMode.addEventListener("change", () => {
-  applyJobMode(liveMode.value === "transcribe" ? "transcribe" : jobMode === "see" ? "see" : "talk");
+  if (liveMode.value === "transcribe") setMuted(true, "transcribe");
+  else if (muteReason === "transcribe") setMuted(false, "mode");
 });
+transcript.addEventListener("input", updateCursorPrompt);
 downloadButton.addEventListener("click", downloadTranscript);
 copyPromptButton.addEventListener("click", () => void copyCursorPrompt());
 clearPromptButton.addEventListener("click", clearTranscript);
@@ -1153,4 +1121,4 @@ void loadLiveCatalog().catch((error) => {
   liveState.textContent = error.message ?? String(error);
   logEvent("error", "Live catalog failed", error.message ?? String(error));
 });
-applyJobMode("talk");
+syncLivePrompt();
