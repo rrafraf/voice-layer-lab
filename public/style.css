@@ -25,6 +25,7 @@ html, body { height: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
+  padding-right: calc(24px + min(380px, 34vw));
   background: radial-gradient(circle at 50% -12%, rgba(110, 168, 255, .14), transparent 28rem), var(--bg);
 }
 
@@ -56,7 +57,6 @@ main {
   gap: 12px;
   min-height: 36px;
   margin: 0 0 10px;
-  padding-right: min(280px, 28vw);
 }
 .app-header h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.02em; }
 .app-header .brand { display: flex; align-items: center; gap: 8px; }
@@ -545,7 +545,7 @@ input[type="text"], textarea {
 
 @media (max-width: 900px) {
   .session-band { grid-template-columns: 1fr; }
-  .app-header { padding-right: 0; }
+  body { padding-right: 12px; }
 }
 @media (max-width: 700px) {
   .app-header { grid-template-columns: auto 1fr auto; }
