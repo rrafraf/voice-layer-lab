@@ -1,18 +1,18 @@
 :root {
   color-scheme: light;
-  --bg: #c3ccd8;
-  --surface: #dfe6ef;
-  --surface-2: #e8eef6;
-  --surface-3: #f3f6fb;
-  --border: #6f8298;
-  --live: #2d6fd4;
-  --live-strong: #3b7de3;
+  --bg: #b4bfcc;
+  --surface: #e7eef6;
+  --surface-2: #eef3f9;
+  --surface-3: #f7f9fc;
+  --border: #4a5d72;
+  --live: #245fbe;
+  --live-strong: #2f6fd4;
   --tts: #b06a12;
   --ok: #157a4c;
   --danger: #c03636;
-  --muted: #334556;
-  --faint: #516274;
-  --text: #13202c;
+  --muted: #243445;
+  --faint: #3d5164;
+  --text: #101820;
   --radius: 14px;
   --radius-sm: 9px;
   font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
@@ -430,8 +430,8 @@ input[type="text"], textarea {
   border: 0;
   border-left: 1px solid rgba(20, 32, 48, 0.28);
   border-radius: 0;
-  background: rgba(28, 40, 54, 0.5);
-  backdrop-filter: blur(10px);
+  background: rgba(24, 36, 50, 0.48);
+  backdrop-filter: blur(8px);
   color: #f4f7fb;
   pointer-events: auto;
 }
