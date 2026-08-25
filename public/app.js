@@ -364,6 +364,7 @@ function setMuted(nextMuted, reason = "user") {
 
 function setVideoState(label) {
   videoState.textContent = label;
+  videoState.hidden = label === "Audio only" || / selected$/.test(label);
 }
 
 function sendLiveSession() {
@@ -850,7 +851,7 @@ async function copyCursorPrompt() {
   await navigator.clipboard.writeText(prompt);
   copyPromptButton.textContent = "Copied";
   logEvent("ok", "Cursor prompt copied", `${prompt.length} characters`);
-  setTimeout(() => { copyPromptButton.textContent = "Copy Cursor prompt"; }, 1200);
+  setTimeout(() => { copyPromptButton.textContent = "Copy"; }, 1200);
 }
 
 function clearTranscript() {
@@ -859,7 +860,12 @@ function clearTranscript() {
   transcript.replaceChildren();
   const empty = document.createElement("div");
   empty.className = "empty";
-  empty.textContent = "Your conversation will appear here.";
+  empty.replaceChildren();
+  const title = document.createElement("strong");
+  title.textContent = "No conversation yet";
+  const hint = document.createElement("span");
+  hint.textContent = "Listen to capture Live turns.";
+  empty.append(title, hint);
   transcript.append(empty);
   downloadButton.disabled = true;
   updateCursorPrompt();
@@ -887,7 +893,7 @@ async function loadTtsCatalog() {
   const catalog = await response.json();
   fillSelect(ttsModel, catalog.models, catalog.defaultModel);
   fillSelect(ttsVoice, catalog.voices, catalog.defaultVoice);
-  ttsState.textContent = "Ready";
+  setTtsState("Ready");
 }
 
 async function loadLiveCatalog() {
@@ -899,7 +905,7 @@ async function loadLiveCatalog() {
 
 async function speakWithTts() {
   ttsSpeakButton.disabled = true;
-  ttsState.textContent = "Generating…";
+  setTtsState("Generating…");
   logEvent("info", "TTS request", ttsVoice.value);
   try {
     const response = await fetch("/api/narrate", {
@@ -923,12 +929,12 @@ async function speakWithTts() {
     ttsDownload.href = ttsAudioUrl;
     ttsDownload.download = `tts-${result.voice}-${new Date().toISOString().replaceAll(":", "-")}.wav`;
     ttsDownload.hidden = false;
-    ttsState.textContent = `${result.voice} · ${result.characters} chars`;
+    setTtsState(`${result.voice} · ${result.characters} chars`);
     logEvent("ok", "TTS audio ready", `${result.model}, ${result.voice}`);
     await ttsAudio.play().catch(() => undefined);
   } catch (error) {
     const message = error.message ?? String(error);
-    ttsState.textContent = message;
+    setTtsState(formatUiError(error), "error");
     logEvent("error", "TTS failed", message);
   } finally {
     ttsSpeakButton.disabled = false;

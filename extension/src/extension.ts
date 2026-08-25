@@ -124,8 +124,9 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
   </head>
   <body data-server-url="${serverUrl}">
     <header>
-      <p class="eyebrow">LOCAL GEMINI RUNTIME</p>
+      <p class="eyebrow">Local Gemini runtime</p>
       <h1>Voice Lab</h1>
+      <p class="lede">Talk live, or recite exact text. Two separate paths.</p>
       <div id="status" class="status idle"><span></span>Idle</div>
     </header>
 
@@ -169,14 +170,10 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
       <button id="live-send" disabled>Send prompt</button>
     </section>
 
-    <section id="transcript" class="transcript" aria-live="polite">
-      <div class="empty">Transcript turns will appear here.</div>
-    </section>
-
-    <section class="prompt">
+    <section class="panel prompt">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">CURSOR HANDOFF</p>
+          <p class="eyebrow">Cursor handoff</p>
           <h2>Reviewed prompt</h2>
         </div>
         <button id="copy-prompt">Copy</button>
@@ -185,15 +182,24 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
       <button id="clear">Clear transcript</button>
     </section>
 
-    <section class="narration">
-      <p class="eyebrow">GEMINI TTS</p>
+    <section class="panel narration">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow tts">Gemini TTS</p>
+          <h2>Exact recitation</h2>
+        </div>
+      </div>
       <p class="muted">Separate from Live. Request/response recitation with voice and style prompts.</p>
-      <label class="muted">Model<select id="tts-model"></select></label>
-      <label class="muted">Voice<select id="tts-voice"></select></label>
-      <input id="tts-style" type="text" placeholder="Style prompt, e.g. calm British narrator">
-      <label class="muted"><input id="tts-exact" type="checkbox" checked> Recite exactly</label>
-      <textarea id="narration-text" rows="5" placeholder="Type text to narrate explicitly."></textarea>
-      <button id="narrate">Speak with TTS</button>
+      <label class="field">Model<select id="tts-model"></select></label>
+      <label class="field">Voice<select id="tts-voice"></select></label>
+      <label class="field">Style prompt
+        <input id="tts-style" type="text" placeholder="calm British narrator">
+      </label>
+      <label class="exact"><input id="tts-exact" type="checkbox" checked> Recite exactly</label>
+      <label class="field">Text to speak
+        <textarea id="narration-text" rows="5" placeholder="Type text to narrate explicitly."></textarea>
+      </label>
+      <button id="narrate" class="primary tts">Speak with TTS</button>
       <audio id="tts-audio" controls></audio>
       <p id="narration-result" class="muted"></p>
     </section>
