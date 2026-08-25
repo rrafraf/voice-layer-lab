@@ -525,7 +525,7 @@ function clearTranscript() {
   transcript.replaceChildren();
   const empty = document.createElement("div");
   empty.className = "empty";
-  empty.textContent = "Your conversation will appear here.";
+  empty.textContent = "Start listening to see the conversation.";
   transcript.append(empty);
   downloadButton.disabled = true;
   updateCursorPrompt();

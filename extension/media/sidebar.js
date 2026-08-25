@@ -214,7 +214,7 @@
     if (turns.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = "Transcript turns will appear here.";
+      empty.textContent = "Start listening to see the conversation.";
       transcript.append(empty);
     } else {
       for (const turn of turns) {
