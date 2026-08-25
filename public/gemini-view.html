@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>What Gemini sees</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #080b10; color: #eef2f6; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
+      body { display: grid; grid-template-rows: auto 1fr auto; }
+      header { padding: 10px 12px; background: #111821; border-bottom: 1px solid #263444; }
+      canvas { width: 100%; height: 100%; object-fit: contain; background: #05080c; }
+      pre { margin: 0; max-height: 28vh; overflow: auto; padding: 10px 12px; white-space: pre-wrap; color: #cdd8e4; background: #080d13; border-top: 1px solid #1c2835; font: 12px/1.45 ui-monospace, Consolas, monospace; }
+    </style>
+  </head>
+  <body>
+    <header>Packed Live frame · park this window off a shared display</header>
+    <canvas id="view"></canvas>
+    <pre id="table">Waiting for frames from the lab page.</pre>
+    <script>
+      const canvas = document.querySelector("#view");
+      const table = document.querySelector("#table");
+      window.addEventListener("message", (event) => {
+        if (event.origin !== location.origin) return;
+        const message = event.data;
+        if (!message || message.type !== "gemini-view") return;
+        const image = new Image();
+        image.onload = () => {
+          canvas.width = image.width;
+          canvas.height = image.height;
+          const context = canvas.getContext("2d");
+          if (!context) return;
+          context.drawImage(image, 0, 0);
+          for (const object of message.map?.objects ?? []) {
+            const x = object.x * canvas.width;
+            const y = object.y * canvas.height;
+            const w = object.w * canvas.width;
+            const h = object.h * canvas.height;
+            context.strokeStyle = "#7db6ff";
+            context.lineWidth = 2;
+            context.strokeRect(x, y, w, h);
+            context.fillStyle = "rgba(7, 16, 27, 0.75)";
+            context.fillRect(x, Math.max(0, y - 16), Math.min(canvas.width - x, 160), 16);
+            context.fillStyle = "#eef2f6";
+            context.font = "11px ui-sans-serif, sans-serif";
+            context.fillText(`${object.kind}: ${object.label}`, x + 4, Math.max(12, y - 4));
+          }
+        };
+        image.src = message.dataUrl;
+        table.textContent = message.table || message.map?.scene || "Packed frame";
+      });
+    </script>
+  </body>
+</html>

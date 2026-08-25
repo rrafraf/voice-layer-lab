@@ -40,6 +40,8 @@ export function formatEvent(event: VoiceEvent): string | undefined {
       return `Connected to ${event.provider}. Speak now; press Ctrl+C to stop.`;
     case "input_transcript":
       return `You: ${event.text}`;
+    case "input_prompt":
+      return `Prompt: ${event.text}`;
     case "output_transcript":
       return `Model: ${event.text}`;
     case "output_audio":

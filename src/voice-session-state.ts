@@ -1,6 +1,6 @@
 import type { VoiceEvent } from "./core/types.js";
 
-export type TranscriptSpeaker = "YOU" | "Gemini";
+export type TranscriptSpeaker = "YOU" | "Gemini" | "PROMPT";
 
 export interface TranscriptTurn {
   speaker: TranscriptSpeaker;
@@ -75,6 +75,11 @@ export class VoiceSessionState {
 
     if (event.type === "input_transcript") {
       this.appendTurn("YOU", event.text);
+      return;
+    }
+
+    if (event.type === "input_prompt") {
+      this.appendTurn("PROMPT", event.text);
       return;
     }
 

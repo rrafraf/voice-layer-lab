@@ -130,30 +130,44 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
       <div id="status" class="status idle"><span></span>Idle</div>
     </header>
 
-    <section class="panel live">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow live">Gemini Live</p>
-          <h2>Conversation</h2>
-        </div>
-      </div>
-      <div class="controls">
-        <button id="start" class="primary">Start listening</button>
-        <button id="stop" disabled>Stop</button>
-        <button id="refresh">Refresh</button>
-      </div>
-      <label class="field">Video source
-        <select id="video-source">
-          <option value="none">Audio only</option>
-          <option value="camera">Camera</option>
-          <option value="screen">Screen</option>
+    <section class="controls">
+      <button id="start" class="primary">Start listening</button>
+      <button id="stop" disabled>Stop</button>
+      <button id="refresh">Refresh</button>
+    </section>
+
+    <section class="video">
+      <p class="eyebrow">VIDEO</p>
+      <select id="video-source">
+        <option value="none">Audio only</option>
+        <option value="camera">Camera</option>
+        <option value="screen">Screen</option>
+      </select>
+      <select id="video-pack">
+        <option value="current">Current frame only</option>
+        <option value="motion" selected>Current + motion tint</option>
+        <option value="motion-strip">Current + tint + strip</option>
+      </select>
+      <p id="video-state" class="muted">Audio only. Packed JPEGs are sent at 1 FPS.</p>
+      <video id="video-preview" autoplay playsinline muted></video>
+      <canvas id="gemini-frame-preview"></canvas>
+    </section>
+
+    <section class="live">
+      <p class="eyebrow">LIVE STEER</p>
+      <p class="muted">Audio, video, and text share one Live session. Answers are spoken audio; text is the transcript. TTS stays in the panel below.</p>
+      <label class="muted">Mode
+        <select id="live-mode">
+          <option value="conversation">Conversation</option>
+          <option value="narration">Narration</option>
+          <option value="transcribe">Transcribe</option>
         </select>
       </label>
-      <p id="video-state" class="muted">Audio only. JPEG frames are sent at 1 FPS.</p>
-      <video id="video-preview" autoplay playsinline muted></video>
-      <section id="transcript" class="transcript" aria-live="polite">
-        <div class="empty">Start listening to see the conversation.</div>
-      </section>
+      <label class="muted">Live voice<select id="live-voice"></select></label>
+      <input id="live-style" type="text" placeholder="Voice feel, e.g. calm present-tense">
+      <label class="muted"><input id="hear-gemini" type="checkbox" checked> Hear Gemini</label>
+      <textarea id="live-prompt" rows="3" placeholder="Steer what to watch or how to answer."></textarea>
+      <button id="live-send" disabled>Send prompt</button>
     </section>
 
     <section class="panel prompt">
@@ -191,7 +205,7 @@ class VoiceLabWebviewProvider implements vscode.WebviewViewProvider {
     </section>
 
     <footer>Nothing is sent to Cursor automatically. Gemini keys stay in the local Node server.</footer>
-    <script nonce="${nonce}" src="${scriptUri}"></script>
+    <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
   </body>
 </html>`;
   }

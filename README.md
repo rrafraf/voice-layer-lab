@@ -12,8 +12,11 @@ copy it, then paste it into Cursor yourself.
 ## Architecture
 
 ```text
-Live:  mic PCM 16kHz + optional JPEG <=1FPS -> VoiceProvider -> Gemini Live
+Live:  mic PCM 16kHz + optional JPEG <=1FPS + text prompts
+                                              -> VoiceProvider -> Gemini Live
+                                              (audio out + transcripts)
 TTS:   explicit text + voice + style prompt -> TtsProvider  -> Gemini TTS
+                                              (audio out only)
                                               |
                                               +-- Gemini Live (interactive native audio)
                                               +-- Gemini TTS (request/response recitation)
@@ -41,8 +44,11 @@ TTS:   explicit text + voice + style prompt -> TtsProvider  -> Gemini TTS
 Double-click `start-voice-lab.cmd`. The local page opens automatically. Select
 **Start listening**, allow microphone access, and talk naturally. Optionally
 choose **Camera** or **Screen** to send JPEG frames at 1 FPS alongside the mic.
-Gemini's audio plays through the browser and both sides appear in the transcript
-panel.
+Use the **Live steer** panel to pick conversation, narration, or transcribe,
+choose a Live voice, set a voice-feel style, and send typed prompts while audio
+and video are running. Gemini's audio plays through the browser (uncheck
+**Hear Gemini** if you only want the transcript) and turns appear as YOU,
+PROMPT, and Gemini.
 
 The **Cursor handoff** panel collects only your spoken turns into a reviewable
 prompt. Select **Copy Cursor prompt** when you want to paste the request into
@@ -69,14 +75,16 @@ Available endpoints:
 - `GET /api/prompt` returns only the reviewed prompt.
 - `POST /api/transcript/clear` clears in-memory transcript turns.
 - `POST /api/control/start` and `POST /api/control/stop` broadcast start/stop intent to connected voice clients.
+- `GET /api/live` returns Live modes, voices, and the audio/video/text I/O contract.
 - `GET /api/tts` returns TTS models, voices, defaults, and the Live-vs-TTS distinction.
 - `POST /api/narrate` accepts `{ "text", "voice?", "model?", "style?", "exact?" }`, recites through Gemini TTS, writes a WAV under `runs/`, and returns audio for in-page playback.
+- `POST /api/vision-map` accepts a packed JPEG and returns a scene line plus labeled boxes for the floating Gemini view. This is not the Live session.
 
 Start/stop control cannot capture hidden Cursor UI state. A connected browser or
 extension webview still owns microphone, camera, and screen-share permission.
 Video is forwarded only as JPEG frames at most once per second.
 
-See `docs/gemini-live-video.md` for Live video constraints and
+See `docs/gemini-live-video.md` for Live audio, video, and text constraints and
 `docs/gemini-tts-vs-live.md` for why TTS stays a separate API.
 
 ## Cursor extension

@@ -1,3 +1,5 @@
+import { composeScreenFrame, videoPackLabel } from "./video-pack.js";
+
 (function () {
   const serverUrl = document.body.dataset.serverUrl.replace(/\/+$/, "");
   const startButton = document.querySelector("#start");
@@ -19,6 +21,14 @@
   const videoSource = document.querySelector("#video-source");
   const videoPreview = document.querySelector("#video-preview");
   const videoState = document.querySelector("#video-state");
+  const videoPack = document.querySelector("#video-pack");
+  const geminiFramePreview = document.querySelector("#gemini-frame-preview");
+  const liveMode = document.querySelector("#live-mode");
+  const liveVoice = document.querySelector("#live-voice");
+  const liveStyle = document.querySelector("#live-style");
+  const livePrompt = document.querySelector("#live-prompt");
+  const liveSendButton = document.querySelector("#live-send");
+  const hearGemini = document.querySelector("#hear-gemini");
 
   let socket;
   let stream;
@@ -26,14 +36,19 @@
   let processor;
   let outputContext;
   let playbackCursor = 0;
+  let muted = false;
   let activeTranscriptTurn;
   const activeSources = new Set();
   const turns = [];
   let ttsAudioUrl;
   let videoStream;
   let videoTimer;
+  let videoSampleTimer;
   const videoCanvas = document.createElement("canvas");
+  const frameHistory = [];
   const VIDEO_FRAME_MS = 1000;
+  const VIDEO_SAMPLE_MS = 330;
+  const VIDEO_HISTORY = 3;
   const VIDEO_MAX_EDGE = 1280;
 
   function setStatus(label, kind = "idle") {
@@ -72,6 +87,7 @@
     if (activeTranscriptTurn?.speaker === speaker) {
       activeTranscriptTurn.body.textContent += text;
       turns[activeTranscriptTurn.turnIndex].text += text;
+      transcript.scrollTop = transcript.scrollHeight;
       renderPrompt(formatCursorPrompt());
       return;
     }
@@ -79,7 +95,7 @@
     finishTranscriptTurn();
     turns.push({ speaker, text, at: new Date().toISOString() });
     const row = document.createElement("div");
-    row.className = `turn ${speaker === "Gemini" ? "model" : "user"}`;
+    row.className = `turn ${speaker === "Gemini" ? "model" : speaker === "PROMPT" ? "prompt" : "user"}`;
     const label = document.createElement("div");
     label.className = "speaker";
     label.textContent = speaker;
@@ -88,7 +104,7 @@
     row.append(label, body);
     transcript.append(row);
     activeTranscriptTurn = { speaker, body, row, turnIndex: turns.length - 1 };
-    row.scrollIntoView({ behavior: "smooth", block: "end" });
+    transcript.scrollTop = transcript.scrollHeight;
     renderPrompt(formatCursorPrompt());
   }
 
@@ -134,23 +150,70 @@
       clearInterval(videoTimer);
       videoTimer = undefined;
     }
+    if (videoSampleTimer) {
+      clearInterval(videoSampleTimer);
+      videoSampleTimer = undefined;
+    }
+    frameHistory.length = 0;
     videoStream?.getTracks().forEach((track) => track.stop());
     videoStream = undefined;
     videoPreview.srcObject = null;
     videoPreview.classList.remove("active");
-    videoState.textContent = videoSource.value === "none" ? "Audio only. JPEG frames are sent at 1 FPS." : "Video stopped";
+    geminiFramePreview.classList.remove("active");
+    videoState.textContent = videoSource.value === "none" ? "Audio only. Packed JPEGs are sent at 1 FPS." : "Video stopped";
   }
 
-  function sendVideoFrame() {
-    if (!socket || socket.readyState !== WebSocket.OPEN || !videoPreview.videoWidth) return;
+  function capturePreviewFrame() {
+    if (!videoPreview.videoWidth) return;
     const scale = Math.min(1, VIDEO_MAX_EDGE / Math.max(videoPreview.videoWidth, videoPreview.videoHeight));
     videoCanvas.width = Math.max(1, Math.round(videoPreview.videoWidth * scale));
     videoCanvas.height = Math.max(1, Math.round(videoPreview.videoHeight * scale));
-    const context = videoCanvas.getContext("2d");
+    const context = videoCanvas.getContext("2d", { willReadFrequently: true });
     if (!context) return;
     context.drawImage(videoPreview, 0, 0, videoCanvas.width, videoCanvas.height);
-    const data = videoCanvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+    frameHistory.push(context.getImageData(0, 0, videoCanvas.width, videoCanvas.height));
+    if (frameHistory.length > VIDEO_HISTORY) frameHistory.shift();
+  }
+
+  function sendVideoFrame() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    capturePreviewFrame();
+    if (!frameHistory.length) return;
+    const packed = composeScreenFrame(frameHistory, videoPack.value, VIDEO_MAX_EDGE) ?? videoCanvas;
+    geminiFramePreview.width = packed.width;
+    geminiFramePreview.height = packed.height;
+    geminiFramePreview.getContext("2d")?.drawImage(packed, 0, 0);
+    geminiFramePreview.classList.add("active");
+    const data = packed.toDataURL("image/jpeg", 0.72).split(",")[1];
     if (data) socket.send(JSON.stringify({ type: "video", mimeType: "image/jpeg", data }));
+  }
+
+  function startVideoSampling() {
+    if (videoSampleTimer) clearInterval(videoSampleTimer);
+    if (videoTimer) clearInterval(videoTimer);
+    if (videoPack.value !== "current") videoSampleTimer = setInterval(capturePreviewFrame, VIDEO_SAMPLE_MS);
+    videoTimer = setInterval(sendVideoFrame, VIDEO_FRAME_MS);
+  }
+
+  async function startScreenCapture() {
+    const options = { video: true, audio: false };
+    try {
+      if (typeof CaptureController === "function") {
+        const controller = new CaptureController();
+        controller.setFocusBehavior?.("no-focus-change");
+        options.controller = controller;
+      }
+    } catch {
+      delete options.controller;
+    }
+    try {
+      return await navigator.mediaDevices.getDisplayMedia(options);
+    } catch (error) {
+      if (options.controller && error?.name !== "NotAllowedError" && error?.name !== "AbortError") {
+        return await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      }
+      throw error;
+    }
   }
 
   async function startVideo() {
@@ -158,7 +221,7 @@
     const kind = videoSource.value;
     if (kind === "none") return;
     videoStream = kind === "screen"
-      ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      ? await startScreenCapture()
       : await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
     const track = videoStream.getVideoTracks()[0];
     track?.addEventListener("ended", () => {
@@ -166,12 +229,13 @@
       stopVideo();
     });
     videoPreview.srcObject = videoStream;
-    videoPreview.classList.add("active");
-    videoState.textContent = `${kind} · JPEG 1 FPS`;
-    videoTimer = setInterval(sendVideoFrame, VIDEO_FRAME_MS);
+    videoPreview.classList.toggle("active", kind !== "screen");
+    videoState.textContent = `${kind} · 1 FPS send · ${videoPackLabel(videoPack.value)}`;
+    startVideoSampling();
   }
 
   function playPcm16(arrayBuffer) {
+    if (muted) return;
     outputContext ??= new AudioContext({ sampleRate: 24000 });
     const bytes = new Int16Array(arrayBuffer);
     const audioBuffer = outputContext.createBuffer(1, bytes.length, 24000);
@@ -186,6 +250,30 @@
     playbackCursor += audioBuffer.duration;
     activeSources.add(source);
     source.onended = () => activeSources.delete(source);
+  }
+
+  function setMuted(nextMuted) {
+    muted = nextMuted;
+    if (muted) stopPlayback();
+    hearGemini.checked = !muted;
+  }
+
+  function sendLiveSession() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({
+      type: "session",
+      mode: liveMode.value,
+      style: liveStyle.value,
+      voice: liveVoice.value,
+      videoPack: videoPack.value,
+    }));
+  }
+
+  function sendLivePrompt() {
+    const text = livePrompt.value.trim();
+    if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({ type: "text", text }));
+    livePrompt.value = "";
   }
 
   function stopPlayback() {
@@ -219,7 +307,7 @@
     } else {
       for (const turn of turns) {
         const row = document.createElement("div");
-        row.className = `turn ${turn.speaker === "Gemini" ? "model" : "user"}`;
+        row.className = `turn ${turn.speaker === "Gemini" ? "model" : turn.speaker === "PROMPT" ? "prompt" : "user"}`;
         const label = document.createElement("div");
         label.className = "speaker";
         label.textContent = turn.speaker;
@@ -267,6 +355,8 @@
       socket = new WebSocket(`${serverUrl.replace(/^http/, "ws")}/voice`);
       socket.binaryType = "arraybuffer";
       socket.onopen = () => {
+        sendLiveSession();
+        liveSendButton.disabled = false;
         processor.onaudioprocess = (event) => {
           if (socket.readyState !== WebSocket.OPEN) return;
           const input = event.inputBuffer.getChannelData(0);
@@ -286,6 +376,8 @@
           setStatus(message.message, message.level === "ok" ? "idle" : message.level);
         } else if (message.type === "input_transcript") {
           appendTurn("YOU", message.text);
+        } else if (message.type === "input_prompt") {
+          appendTurn("PROMPT", message.text);
         } else if (message.type === "output_transcript") {
           appendTurn("Gemini", message.text);
         } else if (message.type === "turn_complete") {
@@ -324,9 +416,21 @@
     finishTranscriptTurn();
     startButton.disabled = false;
     stopButton.disabled = true;
+    liveSendButton.disabled = true;
     if (resetStatus) setStatus("Idle");
   }
 
+  liveSendButton.addEventListener("click", sendLivePrompt);
+  livePrompt.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      sendLivePrompt();
+    }
+  });
+  hearGemini.addEventListener("change", () => setMuted(!hearGemini.checked));
+  liveMode.addEventListener("change", () => {
+    if (liveMode.value === "transcribe") setMuted(true);
+  });
   startButton.addEventListener("click", () => void start());
   stopButton.addEventListener("click", () => void stop());
   videoSource.addEventListener("change", () => {
@@ -334,6 +438,20 @@
       void startVideo().catch((error) => {
         videoState.textContent = error.message || String(error);
       });
+    }
+  });
+  videoPack.addEventListener("change", () => {
+    if (videoStream) {
+      startVideoSampling();
+      videoState.textContent = `${videoSource.value} · 1 FPS send · ${videoPackLabel(videoPack.value)}`;
+    }
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: "text",
+        text: videoPack.value === "current"
+          ? "Video pack is now a single current frame. Read the screenshot directly."
+          : "Video pack now tints changed pixels magenta on the current screenshot. Read the untinted UI; use magenta as attention for motion, cursor, and dialogs.",
+      }));
     }
   });
   refreshButton.addEventListener("click", () => void refresh());
@@ -383,6 +501,17 @@
     void stop(false);
   });
   void refresh().catch((error) => setStatus(error.message || String(error), "error"));
+  void api("/api/live").then((catalog) => {
+    for (const voice of catalog.voices ?? []) {
+      const option = document.createElement("option");
+      option.value = voice.name;
+      option.textContent = `${voice.name} · ${voice.description}`;
+      if (voice.name === catalog.defaultVoice) option.selected = true;
+      liveVoice.append(option);
+    }
+    if (catalog.defaultMode) liveMode.value = catalog.defaultMode;
+    setMuted(liveMode.value === "transcribe");
+  }).catch((error) => setStatus(error.message || String(error), "error"));
   void api("/api/tts").then((catalog) => {
     for (const model of catalog.models ?? []) {
       const option = document.createElement("option");
